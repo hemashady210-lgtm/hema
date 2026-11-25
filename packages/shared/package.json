@@ -1,0 +1,16 @@
+{
+  "name": "@ai-crm/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Runtime-agnostic (browser + Deno) constants, types and config shared by apps and edge functions.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

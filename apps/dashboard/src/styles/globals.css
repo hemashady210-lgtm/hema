@@ -1,0 +1,51 @@
+/* Global stylesheet entry (referenced by components.json). Base layer only — no page styles. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './tokens.css';
+
+@layer base {
+  html {
+    background: var(--background);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Arabic: dedicated family, taller line-heights, never letter-spaced (DESIGN_SYSTEM §3). */
+  html[lang='ar'] {
+    font-family: var(--font-arabic);
+    letter-spacing: 0 !important;
+    --text-display--line-height: 56px;
+    --text-large-title--line-height: 46px;
+    --text-title-1--line-height: 38px;
+    --text-title-2--line-height: 34px;
+    --text-title-3--line-height: 30px;
+    --text-headline--line-height: 26px;
+    --text-body--line-height: 26px;
+    --text-callout--line-height: 24px;
+    --text-subheadline--line-height: 22px;
+    --text-footnote--line-height: 20px;
+    --text-caption--line-height: 18px;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 120ms !important;
+      transition-duration: 120ms !important;
+    }
+  }
+}

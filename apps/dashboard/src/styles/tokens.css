@@ -1,0 +1,211 @@
+/*
+ * Design tokens — implements docs/DESIGN_SYSTEM.md. Dark-first: :root is dark,
+ * [data-theme="light"] overrides. Variable names follow shadcn/ui conventions so generated
+ * components pick them up; Tailwind v4 maps them to utilities via @theme inline.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Brand scales */
+  --royal-50: #eef2ff;
+  --royal-100: #e0e7ff;
+  --royal-200: #c2d1ff;
+  --royal-300: #93aeff;
+  --royal-400: #6688ff;
+  --royal-500: #3d63f0;
+  --royal-600: #2747d1;
+  --royal-700: #1e3aa8;
+  --royal-800: #16297a;
+  --royal-900: #0f1c4d;
+  --royal-950: #0a1233;
+
+  --electric-50: #e6f7ff;
+  --electric-100: #c7edff;
+  --electric-200: #94ddff;
+  --electric-300: #5ccbff;
+  --electric-400: #2ebbff;
+  --electric-500: #00a8ff;
+  --electric-600: #0089d6;
+  --electric-700: #006ba8;
+  --electric-800: #004f7d;
+  --electric-900: #003453;
+  --electric-950: #00213a;
+
+  /* Semantic (dark) */
+  --background: #07090f;
+  --surface-1: #0c1018;
+  --surface-2: #111723;
+  --surface-3: #171e2c;
+  --elevated: #1c2434;
+  --border: rgb(148 170 255 / 0.1);
+  --border-strong: rgb(148 170 255 / 0.18);
+  --text-primary: #f2f5fc;
+  --text-secondary: #a6b0c6;
+  --text-tertiary: #7a85a0;
+  --text-disabled: #4a5368;
+  --primary: var(--royal-500);
+  --primary-foreground: #ffffff;
+  --accent: var(--electric-500);
+  --success: #2fd27f;
+  --warning: #f5b544;
+  --danger: #ff5c6c;
+  --info: #5ccbff;
+
+  /* shadcn aliases */
+  --foreground: var(--text-primary);
+  --card: var(--surface-1);
+  --card-foreground: var(--text-primary);
+  --popover: var(--elevated);
+  --popover-foreground: var(--text-primary);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-secondary);
+  --accent-foreground: #00131f;
+  --destructive: var(--danger);
+  --input: var(--border-strong);
+  --ring: var(--accent);
+
+  /* Materials (fill + blur) */
+  --material-ultra-thin: rgb(12 16 24 / 0.4);
+  --material-thin: rgb(12 16 24 / 0.55);
+  --material-regular: rgb(17 23 35 / 0.72);
+  --material-thick: rgb(23 30 44 / 0.86);
+  --material-chrome: rgb(7 9 15 / 0.8);
+  --material-highlight: inset 0 1px 0 rgb(255 255 255 / 0.04);
+
+  /* Elevation */
+  --elevation-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --elevation-2: 0 4px 12px rgb(0 0 0 / 0.35);
+  --elevation-3: 0 12px 32px rgb(0 0 0 / 0.45);
+  --elevation-glow: 0 0 0 1px rgb(61 99 240 / 0.5), 0 8px 24px rgb(61 99 240 / 0.25);
+
+  /* Radius base for shadcn */
+  --radius: 12px;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --background: #f6f8fc;
+  --surface-1: #ffffff;
+  --surface-2: #f1f4fa;
+  --surface-3: #e8edf6;
+  --elevated: #ffffff;
+  --border: rgb(15 28 77 / 0.1);
+  --border-strong: rgb(15 28 77 / 0.18);
+  --text-primary: #0b1020;
+  --text-secondary: #4a5470;
+  --text-tertiary: #6b7590;
+  --text-disabled: #a3abbf;
+  --primary: var(--royal-600);
+  --accent: var(--electric-600);
+  --accent-foreground: #ffffff;
+  --success: #138a4b;
+  --warning: #b26b00;
+  --danger: #c62b3b;
+  --info: #006ba8;
+  --material-ultra-thin: rgb(255 255 255 / 0.4);
+  --material-thin: rgb(255 255 255 / 0.6);
+  --material-regular: rgb(255 255 255 / 0.75);
+  --material-thick: rgb(255 255 255 / 0.88);
+  --material-chrome: rgb(246 248 252 / 0.82);
+  --material-highlight: inset 0 1px 0 rgb(255 255 255 / 0.6);
+  --elevation-1: 0 1px 2px rgb(15 28 77 / 0.08);
+  --elevation-2: 0 4px 12px rgb(15 28 77 / 0.08);
+  --elevation-3: 0 12px 32px rgb(15 28 77 / 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-elevated: var(--elevated);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
+
+  --color-royal-50: var(--royal-50);
+  --color-royal-100: var(--royal-100);
+  --color-royal-200: var(--royal-200);
+  --color-royal-300: var(--royal-300);
+  --color-royal-400: var(--royal-400);
+  --color-royal-500: var(--royal-500);
+  --color-royal-600: var(--royal-600);
+  --color-royal-700: var(--royal-700);
+  --color-royal-800: var(--royal-800);
+  --color-royal-900: var(--royal-900);
+  --color-royal-950: var(--royal-950);
+  --color-electric-500: var(--electric-500);
+  --color-electric-600: var(--electric-600);
+}
+
+/* Non-inline: emitted as CSS variables so locale overrides (Arabic line-heights) cascade. */
+@theme {
+  --font-sans: 'SF Pro Text', 'SF Pro Display', Inter, system-ui, sans-serif;
+  --font-arabic: 'SF Arabic', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Type scale (LTR line-heights; Arabic overrides in globals.css) */
+  --text-display: 40px;
+  --text-display--line-height: 48px;
+  --text-large-title: 32px;
+  --text-large-title--line-height: 40px;
+  --text-title-1: 26px;
+  --text-title-1--line-height: 32px;
+  --text-title-2: 22px;
+  --text-title-2--line-height: 28px;
+  --text-title-3: 18px;
+  --text-title-3--line-height: 24px;
+  --text-headline: 15px;
+  --text-headline--line-height: 20px;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-callout: 14px;
+  --text-callout--line-height: 20px;
+  --text-subheadline: 13px;
+  --text-subheadline--line-height: 18px;
+  --text-footnote: 12px;
+  --text-footnote--line-height: 16px;
+  --text-caption: 11px;
+  --text-caption--line-height: 14px;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  --shadow-e1: var(--elevation-1);
+  --shadow-e2: var(--elevation-2);
+  --shadow-e3: var(--elevation-3);
+  --shadow-glow: var(--elevation-glow);
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+}

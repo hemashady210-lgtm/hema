@@ -1,0 +1,28 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.vite/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+
+# env / secrets — only .env.example is committed
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+supabase/.temp/
+supabase/.branches/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

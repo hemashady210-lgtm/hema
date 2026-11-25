@@ -1,0 +1,19 @@
+{
+  "name": "@ai-crm/ai-engine",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Provider-agnostic AI pipeline (generation, embeddings, retrieval, tools). Must stay Deno-compatible: fetch-based, no Node built-ins. Design: docs/AI_ENGINE.md.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-crm/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

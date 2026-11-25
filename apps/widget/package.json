@@ -1,0 +1,22 @@
+{
+  "name": "@ai-crm/widget",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Embeddable website chat widget. Framework = Preact (proposal P8, pending approval).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-crm/shared": "workspace:*",
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^22.20.7",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8"
+  }
+}
