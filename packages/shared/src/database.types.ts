@@ -2018,6 +2018,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'invoices_records_usage_period_fk';
+            columns: ['workspace_id', 'usage_period_id'];
+            isOneToOne: false;
+            referencedRelation: 'usage_periods';
+            referencedColumns: ['workspace_id', 'id'];
+          },
+          {
             foreignKeyName: 'invoices_records_workspace_id_fkey';
             columns: ['workspace_id'];
             isOneToOne: false;
@@ -2029,13 +2036,6 @@ export type Database = {
             columns: ['workspace_id', 'payment_transaction_id'];
             isOneToOne: false;
             referencedRelation: 'payment_transactions';
-            referencedColumns: ['workspace_id', 'id'];
-          },
-          {
-            foreignKeyName: 'invoices_records_workspace_id_usage_period_id_fkey';
-            columns: ['workspace_id', 'usage_period_id'];
-            isOneToOne: false;
-            referencedRelation: 'usage_periods';
             referencedColumns: ['workspace_id', 'id'];
           },
         ];
@@ -2167,6 +2167,13 @@ export type Database = {
           workspace_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'kb_chunks_bot_fk';
+            columns: ['workspace_id', 'bot_id'];
+            isOneToOne: false;
+            referencedRelation: 'bots';
+            referencedColumns: ['workspace_id', 'id'];
+          },
           {
             foreignKeyName: 'kb_chunks_workspace_id_document_id_fkey';
             columns: ['workspace_id', 'document_id'];
@@ -4271,7 +4278,10 @@ export type Database = {
           isSetofReturn: true;
         };
       };
-      complete_job: { Args: { p_job_id: number }; Returns: undefined };
+      complete_job: {
+        Args: { p_job_id: number; p_worker_id?: string };
+        Returns: boolean;
+      };
       consume_ai_reply: {
         Args: {
           p_ai_run_id?: string;
@@ -4300,8 +4310,13 @@ export type Database = {
         Returns: number;
       };
       fail_job: {
-        Args: { p_error: string; p_job_id: number; p_retryable?: boolean };
-        Returns: undefined;
+        Args: {
+          p_error: string;
+          p_job_id: number;
+          p_retryable?: boolean;
+          p_worker_id?: string;
+        };
+        Returns: boolean;
       };
       get_workspace_entitlements: {
         Args: { p_workspace_id: string };

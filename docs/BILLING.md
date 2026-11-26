@@ -107,7 +107,10 @@ requires `grace_ends_at` whenever the status is `grace`. Every transition writes
 1. Owner clicks _Subscribe_ → `POST /billing/checkout {plan_code, interval}`.
 2. `api` looks up the plan price + PayPal plan id, creates a PayPal subscription with
    `custom_id = workspace_id` and return/cancel URLs; inserts `subscriptions(status =
-pending_activation, provider = paypal, provider_subscription_id)`; returns `approve_url`.
+pending_activation, provider = paypal, provider_subscription_id)` **beside** the live trial /
+   plan (one pending row per workspace, separate unique index); returns `approve_url`. A pending
+   row grants nothing: entitlements, usage periods and metering only come from a trialing /
+   active / past_due / grace subscription, so the trial keeps working and nothing unlocks early.
 3. Customer approves on PayPal → returns to the dashboard ("activating…" — the UI shows the
    _real_ status, polling until the webhook arrives).
 4. Webhook _subscription activated_ → previous live subscription (trial) is ended, new one
@@ -164,11 +167,16 @@ Enterprise contracts use the same path with `custom_amount_cents` and entitlemen
 ## 7. Usage metering & alerts
 
 - **Usage period** = monthly window anchored to the subscription start (P11) — also on annual
-  plans. Trial = one period from creation to `trial_ends_at`.
+  plans, computed in UTC (a Jan 31 anchor gives Feb 28 → Mar 31). Trial = one period from
+  creation to `trial_ends_at`. Periods belong to one subscription, so an upgrade opens a fresh
+  period on the new plan immediately.
 - `consume_ai_reply(workspace, 'ai_reply:'+message_id)` runs _before_ calling Claude:
   - row-locks the period, checks included replies, allows overage only if `overage_enabled`;
   - writes a `usage_events` ledger row (idempotent key);
-  - on failure the worker calls `release_ai_reply(key)` (quota returned, ledger row `-1`).
+  - on failure the worker calls `release_ai_reply(key)` (quota returned, ledger row `-1`);
+  - a retry with the same key after a release is a **new reservation** (`<key>:r2`, …) with all
+    checks, so every delivered reply is counted; replaying an active reservation is idempotent;
+    a key is bound to its workspace.
 - **Alerts at 80 % and 100 %** of included replies: inserted once per period into
   `usage_alerts` and the outbox (`usage.threshold_reached`) → email to owner/admins + in-app
   banner. For Starter, 100 % = hard stop with upgrade prompt; for Growth, 100 % = overage starts.

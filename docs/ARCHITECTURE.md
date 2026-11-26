@@ -203,7 +203,8 @@ approved templates can be sent — **needs verification** (INTEGRATIONS.md §5).
 
 ### 5.3 Failure handling
 
-- Generation or delivery failure → `release_ai_reply()` (quota returned) → `fail_job()` with
+- Generation or delivery failure → `release_ai_reply()` (quota returned; the retry re-reserves,
+  so every delivered reply is metered) → `fail_job()` with
   exponential backoff (15 s → 1 h cap) → `dead` after `max_attempts`; dead `ai_reply` jobs send
   the bot's fallback message and surface in the inbox as "AI could not reply" (P7). A platform
   admin can re-queue a dead job with `retry_job()` (E1; audited; UI in P14).

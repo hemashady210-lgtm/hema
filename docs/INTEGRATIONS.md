@@ -83,7 +83,8 @@ sequenceDiagram
   S->>M: channel_request.created → email + n8n
   SA->>API: admin/* set in_progress (fee paid/waived)
   SA->>API: admin/* connect {ids, access token}
-  API->>DB: token → Vault (vault.create_secret) · channel_credentials row
+  API->>DB: channels row (pending, manual) — the open request it fulfils is not counted twice
+  API->>DB: token → Vault (vault.create_secret) · channel_credentials row · link request
   API->>G: health check (read phone number / page) — needs verification
   alt check passes
     API->>DB: channels health_status passing + status connected · request completed
@@ -109,8 +110,9 @@ their Meta Business account) — wording to be verified against Meta's current r
   at it. `channel_credentials` has RLS on, no policies and no client privileges: only the service
   role (Edge Functions) can read it (suites 03, 04, 06; verified on the dev project).
 - The member-readable `channels` row has **no** credential columns.
-- Replacing `vault_secret_id`, deleting the credential row, deleting the channel or the workspace
-  deletes the old Vault secret (trigger `channel_credentials_vault_cleanup`, suite 06).
+- Replacing `vault_secret_id`, deleting the credential row, setting the channel to
+  `not_connected`, deleting the channel or the workspace deletes the credential row and its Vault
+  secret (triggers `channels_disconnect_cleanup` + `channel_credentials_vault_cleanup`, suite 06).
 - `scopes` and `expires_at` record what Meta granted (names **needs verification**, P13); the
   scheduler warns before expiry.
 - Credential changes are audit-logged (`audit_logs`).

@@ -19,8 +19,10 @@ production project must be created in Frankfurt (RISKS R-20).
 
 - Files: `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql`, applied in order, each in one
   transaction. RLS, policies and grants live in the same file as the table.
-- **Applied migrations are frozen.** The 14 files were rewritten in place during P2 (never
-  applied anywhere before) and applied to the dev project on 2026-11-26. Every later change is a
+- **Applied migrations are frozen.** The 14 baseline files were rewritten in place during P2
+  (never applied anywhere before) and applied to the dev project on 2026-11-26; the review fixes
+  went into a forward migration (`…20261126000100_p2_review_fixes`). `pnpm db:remote:migrate`
+  refuses to run if an applied file changed on disk (checksum against the stored statements). Every later change is a
   new, reviewed, non-destructive migration (no drops of data-bearing objects without an explicit
   owner-approved plan).
 - History is recorded in `supabase_migrations.schema_migrations` (version, name, statements), the
@@ -39,6 +41,7 @@ export SUPABASE_PROJECT_REF=jpzgdyzbhszyrvzcsljq   # or SUPABASE_URL=https://<re
 pnpm db:remote:status      # version, extensions, migration table, public table count
 pnpm db:remote:migrate     # applies pending files (add `-- --dry-run` to preview)
 pnpm db:remote:test        # all pgTAP suites; each file runs in an always-aborted transaction
+                           # (files that would end the transaction are refused)
 pnpm db:types:remote       # regenerates packages/shared/src/database.types.ts
 ```
 
