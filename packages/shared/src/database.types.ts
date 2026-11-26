@@ -3241,6 +3241,7 @@ export type Database = {
         Row: {
           avatar_path: string | null;
           created_at: string;
+          email: string | null;
           full_name: string | null;
           id: string;
           locale: string;
@@ -3251,6 +3252,7 @@ export type Database = {
         Insert: {
           avatar_path?: string | null;
           created_at?: string;
+          email?: string | null;
           full_name?: string | null;
           id: string;
           locale?: string;
@@ -3261,6 +3263,7 @@ export type Database = {
         Update: {
           avatar_path?: string | null;
           created_at?: string;
+          email?: string | null;
           full_name?: string | null;
           id?: string;
           locale?: string;
@@ -4062,38 +4065,56 @@ export type Database = {
       workspace_invitations: {
         Row: {
           accepted_at: string | null;
+          accepted_by: string | null;
           created_at: string;
           email: string;
+          email_error: string | null;
+          email_sent_at: string | null;
+          email_status: string;
           expires_at: string;
           id: string;
           invited_by: string;
+          locale: string;
           revoked_at: string | null;
           role: Database['public']['Enums']['workspace_role'];
           token_hash: string;
+          updated_at: string;
           workspace_id: string;
         };
         Insert: {
           accepted_at?: string | null;
+          accepted_by?: string | null;
           created_at?: string;
           email: string;
+          email_error?: string | null;
+          email_sent_at?: string | null;
+          email_status?: string;
           expires_at?: string;
           id?: string;
           invited_by: string;
+          locale?: string;
           revoked_at?: string | null;
           role: Database['public']['Enums']['workspace_role'];
           token_hash: string;
+          updated_at?: string;
           workspace_id: string;
         };
         Update: {
           accepted_at?: string | null;
+          accepted_by?: string | null;
           created_at?: string;
           email?: string;
+          email_error?: string | null;
+          email_sent_at?: string | null;
+          email_status?: string;
           expires_at?: string;
           id?: string;
           invited_by?: string;
+          locale?: string;
           revoked_at?: string | null;
           role?: Database['public']['Enums']['workspace_role'];
           token_hash?: string;
+          updated_at?: string;
           workspace_id?: string;
         };
         Relationships: [
@@ -4256,6 +4277,23 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_invitation: {
+        Args: { p_token_hash: string; p_user_id: string };
+        Returns: {
+          member_role: Database['public']['Enums']['workspace_role'];
+          workspace_id: string;
+          workspace_slug: string;
+        }[];
+      };
+      change_member_role: {
+        Args: {
+          p_actor_id: string;
+          p_role: Database['public']['Enums']['workspace_role'];
+          p_user_id: string;
+          p_workspace_id: string;
+        };
+        Returns: undefined;
+      };
       claim_jobs: {
         Args: {
           p_limit?: number;
@@ -4309,6 +4347,77 @@ export type Database = {
           used: number;
         }[];
       };
+      create_invitation: {
+        Args: {
+          p_actor_id: string;
+          p_email: string;
+          p_locale?: string;
+          p_role: Database['public']['Enums']['workspace_role'];
+          p_token_hash: string;
+          p_workspace_id: string;
+        };
+        Returns: {
+          accepted_at: string | null;
+          accepted_by: string | null;
+          created_at: string;
+          email: string;
+          email_error: string | null;
+          email_sent_at: string | null;
+          email_status: string;
+          expires_at: string;
+          id: string;
+          invited_by: string;
+          locale: string;
+          revoked_at: string | null;
+          role: Database['public']['Enums']['workspace_role'];
+          token_hash: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'workspace_invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_workspace: {
+        Args: {
+          p_category: string;
+          p_country_code: string;
+          p_default_locale: string;
+          p_name: string;
+          p_slug: string;
+          p_timezone: string;
+          p_user_id: string;
+        };
+        Returns: {
+          category: string | null;
+          country_code: string | null;
+          created_at: string;
+          created_by: string | null;
+          default_locale: string;
+          deleted_at: string | null;
+          deletion_requested_at: string | null;
+          id: string;
+          logo_path: string | null;
+          name: string;
+          purge_after: string | null;
+          retained_billing_identity: Json | null;
+          retention_days_override: number | null;
+          slug: string;
+          status: Database['public']['Enums']['workspace_status'];
+          status_reason: string | null;
+          timezone: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'workspaces';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       enqueue_job: {
         Args: {
           p_idempotency_key?: string;
@@ -4330,10 +4439,31 @@ export type Database = {
         };
         Returns: boolean;
       };
+      get_invitation_preview: {
+        Args: { p_token_hash: string };
+        Returns: {
+          email: string;
+          expires_at: string;
+          invitation_id: string;
+          inviter_name: string;
+          role: Database['public']['Enums']['workspace_role'];
+          state: string;
+          workspace_name: string;
+        }[];
+      };
       get_workspace_entitlements: {
         Args: { p_workspace_id: string };
         Returns: Json;
       };
+      hit_rate_limit: {
+        Args: { p_bucket: string; p_limit: number; p_window_seconds: number };
+        Returns: {
+          allowed: boolean;
+          remaining: number;
+          retry_after_seconds: number;
+        }[];
+      };
+      is_slug_available: { Args: { p_slug: string }; Returns: boolean };
       match_kb_chunks: {
         Args: {
           p_bot_id: string;
@@ -4361,14 +4491,65 @@ export type Database = {
         Args: { p_idempotency_key: string };
         Returns: boolean;
       };
+      remove_member: {
+        Args: { p_actor_id: string; p_user_id: string; p_workspace_id: string };
+        Returns: undefined;
+      };
+      renew_invitation: {
+        Args: {
+          p_actor_id: string;
+          p_invitation_id: string;
+          p_token_hash: string;
+        };
+        Returns: {
+          accepted_at: string | null;
+          accepted_by: string | null;
+          created_at: string;
+          email: string;
+          email_error: string | null;
+          email_sent_at: string | null;
+          email_status: string;
+          expires_at: string;
+          id: string;
+          invited_by: string;
+          locale: string;
+          revoked_at: string | null;
+          role: Database['public']['Enums']['workspace_role'];
+          token_hash: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'workspace_invitations';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       requeue_stuck_jobs: { Args: never; Returns: number };
       retry_job: {
         Args: { p_actor_id?: string; p_job_id: number; p_reason?: string };
         Returns: boolean;
       };
+      revoke_invitation: {
+        Args: { p_actor_id: string; p_invitation_id: string };
+        Returns: undefined;
+      };
+      set_invitation_email_status: {
+        Args: { p_error?: string; p_invitation_id: string; p_status: string };
+        Returns: undefined;
+      };
       soft_delete_workspace: {
         Args: { p_actor_id?: string; p_workspace_id: string };
         Returns: Json;
+      };
+      transfer_ownership: {
+        Args: {
+          p_actor_id: string;
+          p_new_owner_id: string;
+          p_workspace_id: string;
+        };
+        Returns: undefined;
       };
     };
     Enums: {
