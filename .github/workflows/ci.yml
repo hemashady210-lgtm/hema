@@ -35,4 +35,14 @@ jobs:
         run: supabase test db
       - name: plpgsql lint
         run: supabase db lint --level error
-  # Later phases add `deno lint/test` for supabase/functions (P3+) and Playwright E2E (P3/P16).
+  # Edge Functions (Deno): lint, type check, unit tests (no network, no Supabase).
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno lint supabase/functions
+      - run: deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts
+      - run: deno test --config supabase/functions/api/deno.json --allow-env --permit-no-files supabase/functions
