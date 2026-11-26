@@ -20,8 +20,9 @@ were given) and read whole files around it.
 
 - every new table: RLS enabled in the same migration; policies `to authenticated` using
   `private.is_workspace_member` / `has_workspace_role` / `can_write`; `with check` on writes
-- service-role-only tables (credentials, webhook inboxes, jobs, usage_records, billing writes,
-  ai_runs writes, knowledge_chunks) have no client policies and explicit revokes
+- service-role-only tables (channel_credentials, webhook_events, jobs, usage_events,
+  analytics_events, kb_chunks, …; list in `03_schema_conventions`) have no client policies and
+  explicit revokes; new tenant tables are in the `04_role_matrix` matrix
 - composite FKs `(workspace_id, id)` prevent cross-tenant references
 - SECURITY DEFINER functions only in `private`, `set search_path = ''`, `revoke ... from public`,
   and they re-check the caller's workspace — no confused-deputy paths

@@ -5,9 +5,9 @@ Date: 2026-11-26. Scope: `docs/*` and the 12 migrations in `supabase/migrations/
 ADDENDUM.
 
 **Status: every item is resolved.** The owner decided all items on 2026-11-26; the decisions are
-recorded in `DECISIONS.md` §E and each item is assigned to a phase in `ROADMAP.md`. None of them
-is built yet. Schema items are done in P2, and features in the phase shown. The migrations have
-still been applied only to a stub Postgres, so nothing here is runtime-verified.
+recorded in `DECISIONS.md` §E and each item is assigned to a phase in `ROADMAP.md`. **All P2
+items are done** (2026-11-26): applied to the Supabase dev project and covered by the pgTAP suite
+(394/394 on the dev project and in CI). Feature items remain in the phase shown.
 
 Legend: ✅ resolved (decision + phase) · ✅ done (completed in this session)
 
@@ -42,31 +42,31 @@ secret reference on the member-readable channel row. Adopted per E0 → **P2**.
 
 **P2 Database & security** (all missing tables and columns; owner rule: "all missing TABLES → P2")
 
-| Item                                                                                                                                                    | Status |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `feature_flags` (+ `meta_embedded_signup` row, OFF)                                                                                                     | ✅ P2  |
-| `notifications` (in-app)                                                                                                                                | ✅ P2  |
-| `billing_events` (append-only)                                                                                                                          | ✅ P2  |
-| Generic `webhook_events` covering Meta + PayPal, with status + attempts                                                                                 | ✅ P2  |
-| `analytics_events` (monthly partitions) + `analytics_daily`                                                                                             | ✅ P2  |
-| Knowledge-gap storage                                                                                                                                   | ✅ P2  |
-| `bot_tests`, `bot_test_cases`, `bot_test_results`; bot `status` + `readiness_score`                                                                     | ✅ P2  |
-| Channel health-check fields (last check at / result)                                                                                                    | ✅ P2  |
-| WhatsApp templates schema                                                                                                                               | ✅ P2  |
-| Versioned `bot_configs`                                                                                                                                 | ✅ P2  |
-| `working_hours` + holiday overrides; typed `policies`; `faqs.tags`; KB types policy/manual                                                              | ✅ P2  |
-| `invoices_records` (overage invoices)                                                                                                                   | ✅ P2  |
-| `orders.delivery_fee_cents`; `conversations.last_message_preview`                                                                                       | ✅ P2  |
-| Conversation internal notes (agents) + customer notes                                                                                                   | ✅ P2  |
-| Onboarding progress state                                                                                                                               | ✅ P2  |
-| `widget_settings.installed_verified_at`                                                                                                                 | ✅ P2  |
-| Sandbox/test markers on `messages` / `ai_runs` (playground not billed)                                                                                  | ✅ P2  |
-| Question category constrained to the §6 taxonomy                                                                                                        | ✅ P2  |
-| `channel_credentials` (new finding above)                                                                                                               | ✅ P2  |
-| `retry_job()` for dead jobs (E1)                                                                                                                        | ✅ P2  |
-| pgTAP for every table + role matrix, run on the real Supabase stack                                                                                     | ✅ P2  |
-| `supabase/seed.sql` (local demo data; plans stay seeded by migration)                                                                                   | ✅ P2  |
-| Doc sync: rename docs (E11); ARCHITECTURE, DATABASE (+ ERD), API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING in line with §E; SECURITY.md, DEPLOYMENT.md | ✅ P2  |
+| Item                                                                                                                                                    | Status       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `feature_flags` (+ `meta_embedded_signup` row, OFF)                                                                                                     | ✅ done (P2) |
+| `notifications` (in-app)                                                                                                                                | ✅ done (P2) |
+| `billing_events` (append-only)                                                                                                                          | ✅ done (P2) |
+| Generic `webhook_events` covering Meta + PayPal, with status + attempts                                                                                 | ✅ done (P2) |
+| `analytics_events` (monthly partitions) + `analytics_daily`                                                                                             | ✅ done (P2) |
+| Knowledge-gap storage                                                                                                                                   | ✅ done (P2) |
+| `bot_tests`, `bot_test_cases`, `bot_test_results`; bot `status` + `readiness_score`                                                                     | ✅ done (P2) |
+| Channel health-check fields (last check at / result)                                                                                                    | ✅ done (P2) |
+| WhatsApp templates schema                                                                                                                               | ✅ done (P2) |
+| Versioned `bot_configs`                                                                                                                                 | ✅ done (P2) |
+| `working_hours` + holiday overrides; typed `policies`; `faqs.tags`; KB types policy/manual                                                              | ✅ done (P2) |
+| `invoices_records` (overage invoices)                                                                                                                   | ✅ done (P2) |
+| `orders.delivery_fee_cents`; `conversations.last_message_preview`                                                                                       | ✅ done (P2) |
+| Conversation internal notes (agents) + customer notes                                                                                                   | ✅ done (P2) |
+| Onboarding progress state                                                                                                                               | ✅ done (P2) |
+| `widget_settings.installed_verified_at`                                                                                                                 | ✅ done (P2) |
+| Sandbox/test markers on `messages` / `ai_runs` (playground not billed)                                                                                  | ✅ done (P2) |
+| Question category constrained to the §6 taxonomy                                                                                                        | ✅ done (P2) |
+| `channel_credentials` (new finding above)                                                                                                               | ✅ done (P2) |
+| `retry_job()` for dead jobs (E1)                                                                                                                        | ✅ done (P2) |
+| pgTAP for every table + role matrix, run on the real Supabase stack                                                                                     | ✅ done (P2) |
+| `supabase/seed.sql` (local demo data; plans stay seeded by migration)                                                                                   | ✅ done (P2) |
+| Doc sync: rename docs (E11); ARCHITECTURE, DATABASE (+ ERD), API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING in line with §E; SECURITY.md, DEPLOYMENT.md | ✅ done (P2) |
 
 **Features** (owner rule: "features → their matching phase")
 
@@ -129,4 +129,4 @@ Both apps' `vite-env.d.ts` typings were updated to match the renamed browser var
 
 - ~~OK or veto for the items kept pending approval~~: **all three approved** (DECISIONS E13):
   `allowed_origins`, `pending_activation`, `confirm_order` + `capture_contact_details`.
-- Approve the P2 plan, including the column-level rename list, before any migration is written.
+- ~~Approve the P2 plan, including the column-level rename list~~: approved and applied (2026-11-26).

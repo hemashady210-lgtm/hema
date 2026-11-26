@@ -30,6 +30,14 @@ export default tseslint.config(
     },
   },
   {
+    // Node tooling scripts (DB runners etc.).
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: { ...globals.node },
+    },
+  },
+  {
     // Edge functions run on Deno; they are linted with `deno lint` in Phase 02+.
     ignores: ['supabase/functions/**'],
   },

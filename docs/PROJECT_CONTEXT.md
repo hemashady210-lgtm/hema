@@ -52,12 +52,14 @@ pgvector, Auth, Storage, Realtime, Vault, Edge Functions) · Claude (generation)
 | [`DECISIONS.md`](./DECISIONS.md)                       | Approved decisions, pricing, answers, open proposals — **source of truth** |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md)                 | System design, flows, security, environments                               |
 | [`DATABASE.md`](./DATABASE.md)                         | Schema, ERD, RLS matrix, functions, retention                              |
-| [`API_SPEC.md`](./API_SPEC.md)                         | App, public, widget, admin APIs and webhooks                               |
+| [`API.md`](./API.md)                                   | App, public, widget, admin APIs and webhooks                               |
 | [`AI_ENGINE.md`](./AI_ENGINE.md)                       | Pipeline, providers, prompts, tools, evals, cost model                     |
 | [`BILLING.md`](./BILLING.md)                           | Plans, PayPal/manual flows, metering, trial, fees                          |
-| [`CHANNELS.md`](./CHANNELS.md)                         | Connect section, manual Meta flow, adapters, Embedded Signup path          |
+| [`INTEGRATIONS.md`](./INTEGRATIONS.md)                 | Connect section, manual Meta flow, adapters, Embedded Signup path          |
 | [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md)               | Visual language, tokens, RTL rules, components                             |
-| [`ROADMAP.md`](./ROADMAP.md)                           | Phases 01–10 with exit criteria                                            |
-| [`TESTING_STRATEGY.md`](./TESTING_STRATEGY.md)         | Test layers, rules, AI gates                                               |
-| [`RISK_REGISTER.md`](./RISK_REGISTER.md)               | Risks, scores, mitigations                                                 |
+| [`ROADMAP.md`](./ROADMAP.md)                           | Phases P1–P17 with exit criteria                                           |
+| [`SECURITY.md`](./SECURITY.md)                         | Threat model, isolation controls, credentials, P2 findings                 |
+| [`DEPLOYMENT.md`](./DEPLOYMENT.md)                     | Environments, migration policy, dev-project runner, CI                     |
+| [`TESTING.md`](./TESTING.md)                           | Test layers, rules, AI gates                                               |
+| [`RISKS.md`](./RISKS.md)                               | Risks, scores, mitigations                                                 |
 | [`DEVELOPMENT_PROGRESS.md`](./DEVELOPMENT_PROGRESS.md) | What's done, what's next                                                   |

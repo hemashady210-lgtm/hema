@@ -1,8 +1,8 @@
 -- =============================================================================
 -- 0012 · Reference data: entitlement keys, plans, prices, one-time products,
---        model profiles, platform settings.
+--        model profiles, platform settings, feature flags.
 -- This is DATA, not code: Super Admin edits it afterwards (decision B). Idempotent.
--- PayPal plan ids (provider_price_refs) are inserted per environment in Phase 05.
+-- PayPal plan ids (provider_price_refs) are inserted per environment in P12.
 -- =============================================================================
 
 insert into public.entitlement_definitions (key, value_type, default_value, description) values
@@ -113,7 +113,7 @@ on conflict (code) do nothing;
 --   standard: Haiku 5.5 for replies + classification; escalates to Sonnet 5.5 on complaints,
 --             low-confidence answers or complex multi-step questions. Default for ALL plans.
 --   premium:  Opus 5.5, Enterprise only, assigned per contract via an entitlement override.
--- If Haiku fails the Phase 04 Arabic dialect eval, update the `standard` row (no code change).
+-- If Haiku fails the P6 Arabic dialect eval, update the `standard` row (no code change).
 insert into public.ai_model_profiles
   (code, provider, generation_model, classifier_model, escalation_model, escalation_config,
    effort, max_output_tokens, refusal_fallback)
@@ -137,5 +137,22 @@ insert into public.platform_settings (key, value, description) values
   ('admin_notification_emails', '[]', 'Recipients for channel requests and manual payment requests'),
   ('trial_data_retention_days', '30', 'Days data is kept after a trial ends without upgrade (decision C7)'),
   ('workspace_delete_grace_days', '7', 'Grace period before a requested workspace deletion runs'),
-  ('widget_cdn_version', '"v1"', 'Widget script major version served from the CDN')
+  ('widget_cdn_version', '"v1"', 'Widget script major version served from the CDN'),
+  ('subscription_grace_days', '3', 'Days in `grace` after `past_due` before suspension (E4)')
 on conflict (key) do nothing;
+
+-- Feature flags (E2): Meta Embedded Signup v4 / Facebook Login for Business is built in P13
+-- and stays OFF until the owner enables it.
+insert into public.feature_flags (key, scope, workspace_id, enabled, description) values
+  ('meta_embedded_signup', 'global', null, false,
+   'Meta Embedded Signup v4 (WhatsApp) and Facebook Login for Business (Messenger, Instagram). Manual mode is the active path (E2).')
+on conflict (key, workspace_id) do nothing;
+
+-- -----------------------------------------------------------------------------
+-- Final privilege sweep (runs last): anon may only read the public pricing catalogue,
+-- whatever default grants the platform applies to new tables.
+-- -----------------------------------------------------------------------------
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+grant select on public.entitlement_definitions, public.plans, public.plan_prices,
+  public.plan_entitlements, public.one_time_products to anon;

@@ -6,7 +6,7 @@
 
 -- -----------------------------------------------------------------------------
 -- profiles (1:1 with auth.users)
--- Row creation on sign-up (auth trigger) is implemented in Phase 02 with auth.
+-- Row creation on sign-up (auth trigger) is implemented in P3 with auth.
 -- -----------------------------------------------------------------------------
 create table public.profiles (
   id            uuid primary key references auth.users (id) on delete cascade,
@@ -40,7 +40,10 @@ create table public.workspaces (
   slug                  text not null unique check (slug ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$'),
   default_locale        text not null default 'ar' check (default_locale in ('ar', 'en')),
   timezone              text not null default 'Asia/Riyadh',
+  -- ISO 3166-1 alpha-2 (kept instead of §6 `country`, E0: unambiguous code).
   country_code          char(2),
+  -- §6 workspaces.category (restaurant, cafe, retail, clinic, ...). Free text, set in onboarding.
+  category              text check (char_length(category) between 1 and 64),
   logo_path             text,
   status                public.workspace_status not null default 'active',
   status_reason         text,
@@ -112,6 +115,30 @@ create table public.branches (
 );
 create index branches_workspace_idx on public.branches (workspace_id);
 create trigger branches_updated_at before update on public.branches
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- workspace_onboarding — saveable, resumable wizard state (§12.1, gap; UI in P4)
+-- Steps follow §12.1. `data` holds draft answers not yet saved into their real tables.
+-- -----------------------------------------------------------------------------
+create table public.workspace_onboarding (
+  workspace_id    uuid primary key references public.workspaces (id) on delete cascade,
+  current_step    text not null default 'business_basics' check (current_step in (
+                    'business_basics', 'category', 'branches', 'working_hours', 'contact',
+                    'catalog', 'faqs', 'policies', 'ai_instructions', 'files', 'first_bot',
+                    'widget', 'done')),
+  completed_steps text[] not null default '{}' check (completed_steps <@ array[
+                    'business_basics', 'category', 'branches', 'working_hours', 'contact',
+                    'catalog', 'faqs', 'policies', 'ai_instructions', 'files', 'first_bot',
+                    'widget']::text[]),
+  skipped_steps   text[] not null default '{}',
+  data            jsonb not null default '{}'::jsonb check (jsonb_typeof(data) = 'object'),
+  completed_at    timestamptz,
+  updated_by      uuid references auth.users (id),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create trigger workspace_onboarding_updated_at before update on public.workspace_onboarding
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
@@ -194,8 +221,8 @@ grant execute on all functions in schema private to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- RLS
--- Super Admin access goes through the `admin` edge function (service role + audit log),
--- not through client-side RLS bypass policies (proposal P7 / ARCHITECTURE §6).
+-- Super Admin access goes through the `api` function's `admin/*` routes (service role +
+-- audit log, E7), not through client-side RLS bypass policies (proposal P7).
 -- -----------------------------------------------------------------------------
 alter table public.profiles              enable row level security;
 alter table public.platform_admins       enable row level security;
@@ -203,6 +230,7 @@ alter table public.workspaces            enable row level security;
 alter table public.workspace_members     enable row level security;
 alter table public.workspace_invitations enable row level security;
 alter table public.branches              enable row level security;
+alter table public.workspace_onboarding  enable row level security;
 
 -- profiles: see yourself and teammates; edit only yourself.
 create policy profiles_select on public.profiles for select to authenticated
@@ -229,8 +257,10 @@ create policy workspaces_select on public.workspaces for select to authenticated
 create policy workspaces_update on public.workspaces for update to authenticated
   using (private.can_write(id)) with check (private.can_write(id));
 revoke update on public.workspaces from authenticated;
-grant update (name, default_locale, timezone, country_code, logo_path) on public.workspaces
+grant update (name, default_locale, timezone, country_code, category, logo_path) on public.workspaces
   to authenticated;
+-- Plan and trial dates are NOT copied onto workspaces (§6 lists plan_id / trial_ends_at): they
+-- are resolved from the live subscription, the single source of truth (E0, tested suite 02).
 
 -- members: members read; role changes / removal go through the `api` function
 -- (enforces owner rules and the `max_users` entitlement).
@@ -244,3 +274,19 @@ create policy branches_select on public.branches for select to authenticated
   using (private.is_workspace_member(workspace_id));
 create policy branches_write on public.branches for all to authenticated
   using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+-- Membership, invitations and profiles are written through `api` (owner rules, `max_users`).
+revoke insert, update, delete on public.workspace_members, public.workspace_invitations
+  from authenticated;
+revoke insert, delete on public.profiles, public.workspaces from authenticated;
+revoke all on public.platform_admins from anon;
+revoke insert, update, delete on public.platform_admins from authenticated;
+
+-- Onboarding: members read; owner/admin save progress.
+create policy workspace_onboarding_select on public.workspace_onboarding for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy workspace_onboarding_insert on public.workspace_onboarding for insert to authenticated
+  with check (private.can_write(workspace_id));
+create policy workspace_onboarding_update on public.workspace_onboarding for update to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+revoke delete on public.workspace_onboarding from authenticated;

@@ -22,7 +22,12 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:types": "supabase gen types typescript --local > packages/shared/src/database.types.ts"
+    "db:types": "supabase gen types typescript --local > packages/shared/src/database.types.ts",
+    "db:test:local": "scripts/db/test-local.sh",
+    "db:remote:status": "node scripts/db/supabase-remote.mjs status",
+    "db:remote:migrate": "node scripts/db/supabase-remote.mjs migrate",
+    "db:remote:test": "node scripts/db/supabase-remote.mjs test",
+    "db:types:remote": "node scripts/db/supabase-remote.mjs types && prettier --write packages/shared/src/database.types.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

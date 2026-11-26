@@ -44,34 +44,34 @@ Brand name comes from `packages/shared/src/brand.ts` — never hardcode it.
 
 ### 2.2 Semantic tokens (dark = default, light = `data-theme="light"`)
 
-| Role                     | Dark                      | Light                  | Use                                                                |
-| ------------------------ | ------------------------- | ---------------------- | ------------------------------------------------------------------ |
-| `background`             | `#07090F`                 | `#F6F8FC`              | app canvas                                                         |
-| `surface-1`              | `#0C1018`                 | `#FFFFFF`              | cards, panels                                                      |
-| `surface-2`              | `#111723`                 | `#F1F4FA`              | nested panels, table header, inputs                                |
-| `surface-3`              | `#171E2C`                 | `#E8EDF6`              | hover, selected rows                                               |
-| `elevated`               | `#1C2434`                 | `#FFFFFF`              | popovers, menus, dialogs (with material)                           |
-| `border`                 | `rgb(148 170 255 / 0.10)` | `rgb(15 28 77 / 0.10)` | hairlines                                                          |
-| `border-strong`          | `rgb(148 170 255 / 0.18)` | `rgb(15 28 77 / 0.18)` | inputs, dividers that must read                                    |
-| `text-primary`           | `#F2F5FC`                 | `#0B1020`              | body, titles                                                       |
-| `text-secondary`         | `#A6B0C6`                 | `#4A5470`              | supporting text                                                    |
-| `text-tertiary`          | `#7A85A0`                 | `#6B7590`              | metadata, placeholders (≥ 4.5:1 on surface-1 — verify in Phase 02) |
-| `text-disabled`          | `#4A5368`                 | `#A3ABBF`              | disabled                                                           |
-| `primary` / `primary-fg` | `#3D63F0` / `#FFFFFF`     | `#2747D1` / `#FFFFFF`  | primary buttons, selection                                         |
-| `accent`                 | `#00A8FF`                 | `#0089D6`              | focus ring, live indicators, chart highlight                       |
-| `success`                | `#2FD27F`                 | `#138A4B`              | connected, paid                                                    |
-| `warning`                | `#F5B544`                 | `#B26B00`              | pending, 80 % usage                                                |
-| `danger`                 | `#FF5C6C`                 | `#C62B3B`              | error, failed payment, 100 % hard stop                             |
-| `info`                   | `#5CCBFF`                 | `#006BA8`              | in-progress                                                        |
+| Role                     | Dark                      | Light                  | Use                                                          |
+| ------------------------ | ------------------------- | ---------------------- | ------------------------------------------------------------ |
+| `background`             | `#07090F`                 | `#F6F8FC`              | app canvas                                                   |
+| `surface-1`              | `#0C1018`                 | `#FFFFFF`              | cards, panels                                                |
+| `surface-2`              | `#111723`                 | `#F1F4FA`              | nested panels, table header, inputs                          |
+| `surface-3`              | `#171E2C`                 | `#E8EDF6`              | hover, selected rows                                         |
+| `elevated`               | `#1C2434`                 | `#FFFFFF`              | popovers, menus, dialogs (with material)                     |
+| `border`                 | `rgb(148 170 255 / 0.10)` | `rgb(15 28 77 / 0.10)` | hairlines                                                    |
+| `border-strong`          | `rgb(148 170 255 / 0.18)` | `rgb(15 28 77 / 0.18)` | inputs, dividers that must read                              |
+| `text-primary`           | `#F2F5FC`                 | `#0B1020`              | body, titles                                                 |
+| `text-secondary`         | `#A6B0C6`                 | `#4A5470`              | supporting text                                              |
+| `text-tertiary`          | `#7A85A0`                 | `#6B7590`              | metadata, placeholders (≥ 4.5:1 on surface-1 — verify in P3) |
+| `text-disabled`          | `#4A5368`                 | `#A3ABBF`              | disabled                                                     |
+| `primary` / `primary-fg` | `#3D63F0` / `#FFFFFF`     | `#2747D1` / `#FFFFFF`  | primary buttons, selection                                   |
+| `accent`                 | `#00A8FF`                 | `#0089D6`              | focus ring, live indicators, chart highlight                 |
+| `success`                | `#2FD27F`                 | `#138A4B`              | connected, paid                                              |
+| `warning`                | `#F5B544`                 | `#B26B00`              | pending, 80 % usage                                          |
+| `danger`                 | `#FF5C6C`                 | `#C62B3B`              | error, failed payment, 100 % hard stop                       |
+| `info`                   | `#5CCBFF`                 | `#006BA8`              | in-progress                                                  |
 
 Contrast: `primary-fg` on `primary` ≈ 4.9:1 (AA). Every text/background pair must meet WCAG 2.2
-AA (4.5:1 body, 3:1 large text and UI glyphs); a contrast test runs in CI from Phase 02.
+AA (4.5:1 body, 3:1 large text and UI glyphs); a contrast test runs in CI from P3.
 
 ### 2.3 Data visualization
 
 Categorical (dark): `#3D63F0`, `#00A8FF`, `#8B7BFF`, `#2FD27F`, `#F5B544`, `#FF7AA8`.
 Sequential: Royal Blue 900 → 300. Charts mirror their x-axis in RTL only for time series where
-Arabic readers expect right-to-left time (decision deferred to Phase 08 user testing; default:
+Arabic readers expect right-to-left time (decision deferred to P16 user testing; default:
 **keep time axes LTR** as most Arabic business dashboards do — needs validation with users).
 
 ## 3. Typography
@@ -114,7 +114,7 @@ no uppercase transforms, no italics** (use weight or color for emphasis). Minimu
 - **Shell:** sidebar 264 px (collapsed 72 px) on the _start_ side; top bar 56 px; content max
   width 1280 px, gutters 24 px (desktop) / 16 px (mobile). 12-column grid, 24 px gaps.
 - **Breakpoints:** `sm 640`, `md 768`, `lg 1024`, `xl 1280`, `2xl 1536`. Inbox is 3-pane at
-  `xl` (list · thread · contact panel), 2-pane at `lg`, stacked below.
+  `xl` (list · thread · customer panel), 2-pane at `lg`, stacked below.
 - **Radii (continuous-corner feel):** `xs 6`, `sm 8`, `md 12` (inputs, buttons), `lg 16`
   (cards), `xl 20` (dialogs, sheets), `2xl 28` (marketing/hero), `full` (pills, avatars).
 - **Hit targets:** ≥ 36 px desktop, ≥ 44 px touch.
@@ -165,14 +165,15 @@ rules), numbers, charts' value axis.
 | ------------ | --------------------- | ----------- | ----------------------------------------------------------- |
 | Channel      | not_connected         | neutral     | Not connected / غير متصل                                    |
 |              | pending               | warning     | Pending review / قيد المراجعة                               |
-|              | in_progress           | info        | Connecting… / جارٍ الربط                                     |
 |              | connected             | success     | Connected / متصل                                            |
 |              | error                 | danger      | Needs attention / يحتاج إلى تدخل                            |
-|              | disconnected          | neutral     | Disconnected / تم الفصل                                     |
+|              | disabled              | neutral     | Disabled / معطّل                                             |
+| Request      | in_progress           | info        | Connecting… / جارٍ الربط                                     |
 |              | rejected              | danger      | Couldn't connect / تعذّر الربط                               |
 | Subscription | trialing              | info        | Trial · N days left / تجربة · متبقٍ N أيام                   |
 |              | active                | success     | Active / نشط                                                |
 |              | past_due              | warning     | Payment failed / فشل الدفع                                  |
+|              | grace                 | warning     | Grace · N days left / فترة سماح · متبقٍ N أيام               |
 |              | read_only (workspace) | danger      | Read-only — upgrade to continue / للقراءة فقط — قم بالترقية |
 | Usage        | < 80 %                | primary     | —                                                           |
 |              | ≥ 80 %                | warning     | 80 % used / تم استخدام ٨٠٪                                  |
@@ -191,7 +192,7 @@ Arabic copy is a starting point for a native copywriter review.
 | Data       | Table (sticky header, virtualized), DataList, StatCard, UsageMeter, Sparkline, Chart wrappers, Timeline (request history)                                                               | numbers `tabular-nums`                                            |
 | Feedback   | Badge, StatusPill, Toast, InlineAlert, Banner (trial/usage/read-only), Skeleton, EmptyState, ProgressSteps                                                                              | no spinners > 300 ms without skeleton                             |
 | Overlays   | Dialog, Sheet (side = end), Popover, Tooltip, DropdownMenu, ContextMenu                                                                                                                 | materials `regular`/`thick`                                       |
-| Messaging  | ConversationList item, MessageBubble (contact / AI / agent / system), Composer, TypingIndicator, HandoffBar, ChannelIcon                                                                | bubbles use `dir="auto"`; AI messages labeled "AI"                |
+| Messaging  | ConversationList item, MessageBubble (customer / AI / agent / system), Composer, TypingIndicator, HandoffBar, ChannelIcon                                                               | bubbles use `dir="auto"`; AI messages labeled "AI"                |
 | Connect    | ChannelCard, ConnectionRequestForm, InstallSnippet (copy), OriginListEditor, WidgetPreview                                                                                              | real statuses only                                                |
 | Billing    | PlanCard, PriceToggle (monthly/annual "2 months free"), UsageMeter, TransactionTable, UpgradePrompt                                                                                     |                                                                   |
 
@@ -200,7 +201,7 @@ Arabic copy is a starting point for a native copywriter review.
 1. Set `<html lang dir>` from the user's locale; switching language re-renders without reload.
 2. Use **logical** utilities only: `ms-/me-`, `ps-/pe-`, `start-/end-`, `text-start/end`,
    `border-s/e`, `rounded-s/e`. Lint rule forbids `ml-/mr-/pl-/pr-/left-/right-` in app code
-   (Phase 02).
+   (P3).
 3. User-generated content (messages, names, KB text) renders with `dir="auto"` and `<bdi>` for
    inline names/numbers inside sentences.
 4. Always-LTR islands: phone numbers, emails, URLs, code/snippets, IDs, prices with currency
@@ -208,7 +209,7 @@ Arabic copy is a starting point for a native copywriter review.
 5. Numerals: `profiles.numeral_style` = `latin` (default) or `arabic_indic`; formatting via
    `Intl.NumberFormat('ar-u-nu-arab' | 'ar-u-nu-latn')`. Dates via `Intl.DateTimeFormat` with
    workspace time zone; Gregorian default, Hijri display optional later.
-6. Mixed-direction layouts are tested with snapshots in both directions (TESTING_STRATEGY §4).
+6. Mixed-direction layouts are tested with snapshots in both directions (TESTING §4).
 7. Icons per §7; animations per §6 use logical directions.
 
 ## 11. Accessibility
@@ -217,7 +218,7 @@ WCAG 2.2 AA: contrast (§2), visible focus on every interactive element, full ke
 (inbox shortcuts: `J/K` next/prev, `R` reply, `E` close — shown in a shortcut sheet), roles and
 labels on all shadcn/Radix primitives, live regions for new messages (polite) and errors
 (assertive), reduced motion/transparency respected, forms with programmatic error association,
-target sizes per §4. Automated axe checks in Playwright from Phase 02.
+target sizes per §4. Automated axe checks in Playwright from P3.
 
 ## 12. Widget subset
 

@@ -1,6 +1,7 @@
 -- =============================================================================
 -- 0011 · Storage buckets + policies
--- Object paths always start with the workspace id: `<workspace_id>/<...>`.
+-- Object paths always start with the workspace id: `<workspace_id>/<...>`
+-- (knowledge files: `<workspace_id>/<source_id>/<document_id>/<name>`, see kb_documents).
 -- Uploads use signed upload URLs issued by the `api` function after validating plan,
 -- size and MIME type; clients get read access only. (Whether signed upload URLs bypass
 -- storage RLS entirely = needs verification against current Supabase Storage docs.)
@@ -28,6 +29,7 @@ exception when invalid_text_representation then
   return null;
 end;
 $$;
+revoke all on function private.try_uuid(text) from public, anon;
 grant execute on function private.try_uuid(text) to authenticated;
 
 create or replace function private.object_workspace(p_name text)
@@ -36,6 +38,7 @@ language sql immutable set search_path = ''
 as $$
   select private.try_uuid((storage.foldername(p_name))[1]);
 $$;
+revoke all on function private.object_workspace(text) from public, anon;
 grant execute on function private.object_workspace(text) to authenticated;
 
 create policy "members read knowledge files" on storage.objects for select to authenticated

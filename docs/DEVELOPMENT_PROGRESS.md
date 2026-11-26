@@ -1,11 +1,118 @@
 # Development Progress
 
-## Current phase: P1 Foundation · **complete and reconciled with MASTER_PROMPT**. Next: **P2 Database & security** (not started; needs a plan + owner approval)
+## Current phase: P2 Database & security · **complete — awaiting owner review**. P3 not started (needs a plan + owner approval)
 
-Last updated: 2026-11-26 (reconciliation session). Phases follow the 17-phase plan in
-`ROADMAP.md` (decision E3); "Phase 01" below is P1.
+Last updated: 2026-11-26 (P2 session). Phases follow the 17-phase plan in `ROADMAP.md` (E3).
+Branch `claude/phase-p2-database-security-sgovxe`, draft PR #2 → `main`.
 
-### Delivered in Phase 01
+## P2 summary (latest verified working state)
+
+- **Supabase dev project `ai-crm-dev`** (ref `jpzgdyzbhszyrvzcsljq`, `eu-west-1`, Postgres 17.12):
+  **15 migrations applied** and recorded in `supabase_migrations.schema_migrations`; **pgTAP
+  459/459** there (8 suites). No demo seed and no test data on the project (checked after every
+  run).
+- **CI** (GitHub Actions, job `db`, Supabase CLI 2.122.1 local stack): migrations + `seed.sql` +
+  **459/459** + `supabase db lint` clean; job `checks` (lint, format, typecheck, test) green.
+- **Local harness** (`pnpm db:test:local`, plain Postgres 16 + stubs): 459/459.
+- `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` pass (no package tests yet).
+
+### Done
+
+| Milestone | What                                                                                                                                                                              | Commit                   |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| M1        | Doc renames (E11): `API.md`, `INTEGRATIONS.md`, `TESTING.md`, `RISKS.md` + all references                                                                                         | `5e0fc2d`                |
+| M2        | `supabase/config.toml`, Management-API runner `scripts/db/supabase-remote.mjs` (status / migrate / test / types), local harness, CI job `db`                                      | `e9b7bce`                |
+| M3        | 12 migrations rewritten in place with the approved E9 rename list + E4/E5/E10 statuses, security fixes, composite FKs                                                             | `03fb786`                |
+| M4        | All missing tables (gap list), `channel_credentials` (service role only, Vault), `retry_job()`, versioned `bot_configs`, partitioned analytics, feature flags; pgTAP suites 03–08 | `c669606`                |
+| M5        | Applied to the dev project; full pgTAP there; `packages/shared/src/database.types.ts`; `supabase/seed.sql` (local/CI only)                                                        | `1687bee`                |
+| M6        | Docs synced with §E (ARCHITECTURE, DATABASE + ERD + RLS matrix, API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING, RISKS, DESIGN_SYSTEM); new `SECURITY.md`, `DEPLOYMENT.md`         | `2caa991`                |
+| M7        | code-reviewer + security-reviewer subagents; all verified findings fixed in forward migration `…20261126000100_p2_review_fixes` + regression tests; runner + seed hardening; docs | `ddf848a` + final commit |
+
+Review results: security review — no critical/high; 5 medium, 4 low, hardening items → all fixed.
+Code review — 12 important + nits → fixed, except the two owner decisions below. Details:
+`SECURITY.md §7`.
+
+### Verified (ran and passed)
+
+- Every migration applies on the dev project, in CI (Supabase local stack) and locally.
+- Role matrix: every tenant table × select/insert/update/delete × owner/admin/agent/viewer/other
+  tenant/anon, plus platform tables, limit-leak probes, read-only workspace, full workspace
+  hard delete (suite 04).
+- Catalog-wide conventions incl. service-only tables, `anon` scope, function grants, empty
+  `search_path`, immutable `workspace_id`, storage policies (suite 03).
+- Cross-tenant references blocked by composite FKs; retrieval scoped per workspace (suite 05).
+- `channel_credentials` unreadable by clients; **real Supabase Vault** round trip and cleanup on
+  the dev project and in CI (suite 06).
+- Queue, dead-letter, `retry_job` + audit, worker ownership (suite 07); metering incl. release →
+  retry re-reservation, overage, pending activation, mid-trial upgrade, grace (suite 02).
+- Live REST layer on the dev project with the environment's keys: `anon` gets `42501` on tenant
+  tables, service-only tables and RPCs; pricing readable, trial plan hidden; `private` schema
+  not exposed (`PGRST106`); service role reaches what edge functions need.
+- Limit race fixed: two concurrent sessions at `max_bots = 1` → second rejected (manual, local).
+- Supabase docs (checked 2026-11-26): key types + legacy key deprecation (early 2027), Google
+  `config.toml` names, Edge Function shared-code pattern.
+
+### Not verified / known gaps
+
+- R-14: whether `supabase functions deploy` bundles imports from `packages/*` (docs silent) —
+  verify with the first function in P3.
+- `config.toml` was hand-written (CLI could not be installed in the sandbox); it works in CI with
+  CLI 2.122.1, not tested with CLI v3.
+- HNSW use by `match_kb_chunks` after the rewrite is not measured (needs real data, P5/P16).
+- `consume_ai_reply` refuses playground runs only when `ai_run_id` is passed (P7 must pass it).
+- Partitions exist through Feb 2027; the scheduler must run `ensure_analytics_partitions()`
+  monthly (P10).
+- Demo seed users cannot sign in (no `auth.identities`; P3).
+- Supabase's platform event trigger `public.rls_auto_enable()` exists on the dev project (not
+  ours; excluded from the convention check) — **needs verification** of what it does.
+
+### Needs owner action
+
+1. **Revoke the Supabase personal access token used in P2** (Dashboard → Account → Access
+   Tokens) and the network secret for `api.supabase.com` in the environment settings; create a
+   new one only when the next phase needs it.
+2. **Decide: billing records on workspace deletion.** Today `payment_transactions`,
+   `billing_events` and `invoices_records` cascade with the workspace; C8 / DATABASE §7 expect
+   retention (anonymized). Options: archive before delete (P10 job) or retained FKs (legal
+   retention per country = needs verification).
+3. **Decide: commit trailers.** Earlier P2 commits carry `Co-Authored-By: Claude Opus 5.5`;
+   CLAUDE.md forbids model identifiers. Later commits use `Claude` only. Rewriting history needs
+   a force-push of this branch — say if you want it.
+4. **Decide (optional):** per-plan row quotas for FAQs / catalog items (cost control on trials).
+5. Production project must be created in **Frankfurt** (dev is in Ireland, RISKS R-20).
+6. Switch the environment to new-style Supabase keys before early 2027 (RISKS R-21).
+7. Set `main` as the GitHub default branch (Settings → General), if not done yet.
+8. Review and merge PR #2 (currently a draft).
+
+### Next: P3 Auth, workspaces, app shell, i18n, tokens (not started)
+
+Start by presenting a P3 plan for approval (`ROADMAP.md` P3). P2 leaves ready: the full schema on
+the dev project, generated DB types in `@ai-crm/shared`, the runner and CI. P3 must verify R-14
+with the first Edge Function and wire Google sign-in per `DEPLOYMENT.md §6`.
+
+### How to resume
+
+- Read this file, `DECISIONS.md`, `DATABASE.md`, `SECURITY.md`, `DEPLOYMENT.md`.
+- DB loop: `pnpm db:test:local` (no Docker) → push (CI `db` job) → `pnpm db:remote:migrate` +
+  `pnpm db:remote:test` with a valid `SUPABASE_ACCESS_TOKEN` (see DEPLOYMENT §3). Applied
+  migrations are frozen; new work = new migration + matrix row in suite 04.
+
+### Open "needs verification" items (tracked)
+
+Meta Graph API details (identifiers, tokens, webhooks, messaging windows, Embedded Signup v4
+outputs, webhook event ids) · PayPal Subscriptions/Orders API event names and plan-revision
+behavior · Voyage model names, dimensions and Arabic quality · Anthropic SDK in Deno, fallback
+billing semantics · Supabase: pg_cron sub-minute schedules, Realtime broadcast authorization,
+signed upload URLs vs Storage RLS, CLI bundling of workspace packages (R-14), `rls_auto_enable`
+· Deno PDF/DOCX extraction · legal retention rules. Resolved in P2: Postgres has an `arabic`
+text-search config (dev project); pg_cron 1.6.4 / pg_net 0.20.4 / pgvector 0.8.2 / pgTAP 1.3.3 /
+Vault available; Supabase key naming; Google env names.
+
+## History
+
+### P1 Foundation (Phase 01), tooling and reconciliation sessions
+
+#### Delivered in Phase 01
 
 | Deliverable                                 | Location                                                                                                                                                |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,17 +122,17 @@ Last updated: 2026-11-26 (reconciliation session). Phases follow the 17-phase pl
 | DB schema, Mermaid ERD, RLS matrix          | `docs/DATABASE.md`                                                                                                                                      |
 | SQL migrations (12 files, **not applied**)  | `supabase/migrations/`                                                                                                                                  |
 | pgTAP tests (32 assertions)                 | `supabase/tests/database/`                                                                                                                              |
-| API spec                                    | `docs/API_SPEC.md`                                                                                                                                      |
+| API spec                                    | `docs/API.md`                                                                                                                                           |
 | AI engine design (+ cost model)             | `docs/AI_ENGINE.md`                                                                                                                                     |
 | Billing design                              | `docs/BILLING.md`                                                                                                                                       |
-| Channels / Connect section                  | `docs/CHANNELS.md`                                                                                                                                      |
+| Channels / Connect section                  | `docs/INTEGRATIONS.md`                                                                                                                                  |
 | Design system + tokens                      | `docs/DESIGN_SYSTEM.md`, `apps/dashboard/src/styles/{tokens,globals}.css`                                                                               |
-| Roadmap, testing strategy, risk register    | `docs/ROADMAP.md`, `docs/TESTING_STRATEGY.md`, `docs/RISK_REGISTER.md`                                                                                  |
+| Roadmap, testing strategy, risk register    | `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/RISKS.md`                                                                                                   |
 | Project context, CLAUDE.md, README          | `docs/PROJECT_CONTEXT.md`, `CLAUDE.md`, `README.md`                                                                                                     |
 | Monorepo scaffold + base configs            | `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `eslint.config.js`, Prettier, EditorConfig, `.nvmrc`, CI workflow, per-app/package configs |
 | `.env.example` (placeholders only)          | `.env.example`                                                                                                                                          |
 
-### Verification performed
+#### Verification performed
 
 - `pnpm install`, `pnpm lint`, `pnpm format:check`, `pnpm typecheck`: all pass. This is the same
   set CI runs; `pnpm test` has no tests yet.
@@ -41,12 +148,12 @@ Last updated: 2026-11-26 (reconciliation session). Phases follow the 17-phase pl
   (real `auth.uid()`, Storage, Vault, default grants, pg_cron/pg_net). This is the first task
   of Phase 02.
 
-### Not done in Phase 01 (by rule)
+#### Not done in Phase 01 (by rule)
 
 No feature code, no UI pages, no auth implementation, no Edge Function code, no deployment. No
 Supabase project was created and no migration was applied to one.
 
-### Owner decisions recorded (2026-11-26)
+#### Owner decisions recorded (2026-11-26)
 
 1. **Model routing (A15):** Haiku 5.5 is the default for all plans (replies + classification);
    it escalates to Sonnet 5.5 only for complaints, low-confidence answers or complex
@@ -62,7 +169,7 @@ Supabase project was created and no migration was applied to one.
 
 **Waiting for the owner's go-ahead before starting Phase 02.**
 
-### Tooling session (2026-11-26) — no product code
+#### Tooling session (2026-11-26) — no product code
 
 - `docs/MASTER_PROMPT.md` replaced with the owner's full-build master prompt (§0–§25) + addendum
   (the Phase 01 prompt it replaced is in git history, commit `55528fd`). The first copy was cut
@@ -82,7 +189,7 @@ Supabase project was created and no migration was applied to one.
   manually: clean file → pass; injected type + lint errors → both reported, exit 2.
 - Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
 
-### Reconciliation session (2026-11-26), docs only
+#### Reconciliation session (2026-11-26), docs only
 
 The owner decided every `GAP_ANALYSIS.md` §1 item. They are recorded as **DECISIONS §E**
 (E0–E13). General rule E0: MASTER_PROMPT + ADDENDUM is the source of truth, except where existing
@@ -103,31 +210,3 @@ tested work is equal or better.
 
 Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `main`. Setting
 `main` as the GitHub default branch is an owner action (repo Settings → General).
-
-### Needs owner action
-
-- Set `main` as the default branch (GitHub Settings → General).
-- Create the Supabase project (EU, Frankfurt). P2 needs it.
-
-### Next: P2 Database & security (not started)
-
-Start by presenting a P2 plan for approval (see `ROADMAP.md` P2). It must include:
-
-- `supabase init`, merge `config.toml`, `supabase db reset` on the real local stack; re-run
-  pgTAP there.
-- Schema reconciliation per DECISIONS §E: renames (column-level list for approval), `grace`,
-  channel status, `connection_mode`, conversation `status`/`handler`, `channel_credentials`,
-  `retry_job()`, plus every missing table listed in `GAP_ANALYSIS.md` §2.
-- Whether to edit the 12 unapplied migrations in place or add new ones.
-- pgTAP for every table + role matrix in CI; doc sync + renames (E11).
-- Resolve "needs verification": R-14 (sharing packages with Edge Functions), Supabase key
-  naming (publishable vs anon), Google provider env names.
-
-### Open "needs verification" items (tracked)
-
-Meta Graph API details (identifiers, tokens, webhooks, messaging windows, Embedded Signup v4
-outputs) · PayPal Subscriptions/Orders API event names and plan-revision behavior · Voyage
-model names, dimensions and Arabic quality · Anthropic SDK in Deno, fallback billing semantics
-· Supabase: pg_cron sub-minute schedules, pg_net, Realtime broadcast authorization, signed
-upload URLs vs Storage RLS, CLI bundling of workspace packages · Postgres Arabic text-search
-config · Deno PDF/DOCX extraction · legal retention rules.

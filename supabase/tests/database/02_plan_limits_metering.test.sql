@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(18);
+select plan(47);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -68,6 +68,26 @@ select is(
   (select ai_replies_used from public.usage_periods where workspace_id = '10000000-0000-0000-0000-00000000000b'),
   99, 'usage counter reflects the release');
 
+-- A released reply is re-reserved, never free (review fix 0013).
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000b', 'reply:7')),
+  'ok', 'consume after release reserves again with the full checks');
+select is(
+  (select ai_replies_used from public.usage_periods where workspace_id = '10000000-0000-0000-0000-00000000000b'),
+  100, 'the retried reply is counted');
+select ok(exists (select 1 from public.usage_events where idempotency_key = 'reply:7:r2' and kind = 'ai_reply_reserved'),
+  'the second attempt is booked under its own ledger key');
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000b', 'reply:7')),
+  'already_reserved', 'replaying the active attempt is still idempotent');
+select ok(public.release_ai_reply('reply:7'), 'release returns the latest attempt');
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000a', 'reply:8')),
+  'idempotency_key_conflict', 'a key booked by another workspace is refused');
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000b', 'reply:9:released')),
+  'invalid_idempotency_key', 'reserved key suffixes cannot be used as idempotency keys');
+
 -- Model routing (decision A15)
 select is(
   (select count(*)::int from public.plans p
@@ -92,6 +112,102 @@ select throws_ok(
   $$ insert into public.ai_runs (workspace_id, provider, model, escalated, escalation_reason)
      values ('10000000-0000-0000-0000-00000000000e', 'anthropic', 'm', true, 'bored') $$,
   '23514', null, 'escalation_reason is constrained');
+
+-- Grace (E4): service keeps running during the 3-day grace window.
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-00000000000f', 'Grace WS', 'ws-grace');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start, grace_ends_at)
+  select '10000000-0000-0000-0000-00000000000f', id, 'grace', 'manual', 'month', now(), now() + interval '3 days'
+  from public.plans where code = 'starter';
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000f', 'grace:1')),
+  'ok', 'grace: AI replies still allowed');
+select throws_ok(
+  $$ insert into public.subscriptions (workspace_id, plan_id, status, provider)
+     select '10000000-0000-0000-0000-00000000000e', id, 'grace', 'manual' from public.plans where code = 'starter' $$,
+  '23514', null, 'grace requires grace_ends_at');
+select is(
+  (select value #>> '{}' from public.platform_settings where key = 'subscription_grace_days'),
+  '3', 'grace period is data (3 days)');
+
+-- Playground runs are never billed (§13).
+insert into public.ai_runs (id, workspace_id, provider, model, is_test) values
+  ('40000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'anthropic', 'm', true),
+  ('40000000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-00000000000e', 'anthropic', 'm', false);
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000a', 'test:1',
+     '40000000-0000-0000-0000-00000000000a')),
+  'test_run_not_billable', 'test runs never consume quota');
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000a', 'xws:1',
+     '40000000-0000-0000-0000-00000000000e')),
+  'ai_run_not_found', 'an AI run from another workspace cannot be billed here');
+select throws_ok(
+  $$ update public.ai_runs set billed = true where id = '40000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'a test run can never be marked billed');
+
+-- Feature gates on Starter (TESTING §3 rule 2)
+select throws_like($$ insert into public.branches (workspace_id, name) values ('10000000-0000-0000-0000-00000000000a', '{"en":"B"}') $$,
+  'plan_feature:multi_branch', 'Starter: branches need multi_branch');
+select throws_like($$ insert into public.orders (workspace_id, customer_id, source, currency) values ('10000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'ai', 'SAR') $$,
+  'plan_feature:orders', 'Starter: orders not available');
+select throws_like($$ insert into public.reservations (workspace_id, customer_id, source, party_size, reserved_at) values ('10000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'ai', 2, now()) $$,
+  'plan_feature:reservations', 'Starter: reservations not available');
+select throws_like($$ insert into public.handoffs (workspace_id, conversation_id, requested_by) values ('10000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'customer') $$,
+  'plan_feature:human_handoff', 'Starter: handoffs not available');
+select throws_like($$ insert into public.api_keys (workspace_id, name, key_prefix, key_hash) values ('10000000-0000-0000-0000-00000000000a', 'k', 'sk', 'h-limit-test') $$,
+  'plan_feature:api_access', 'Starter: API keys not available');
+
+-- Overrides raise a limit; expired overrides are ignored.
+insert into public.workspace_entitlement_overrides (workspace_id, key, value, reason) values
+  ('10000000-0000-0000-0000-00000000000a', 'max_bots', '2', 'test');
+select lives_ok($$ insert into public.bots (workspace_id, name) values ('10000000-0000-0000-0000-00000000000a', 'Bot 2') $$,
+  'override raises max_bots');
+insert into public.workspace_entitlement_overrides (workspace_id, key, value, reason, expires_at) values
+  ('10000000-0000-0000-0000-00000000000a', 'max_users', '5', 'test', now() - interval '1 day');
+select throws_like(
+  $$ insert into public.workspace_members (workspace_id, user_id, role)
+     values ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000c', 'agent') $$,
+  'plan_limit:max_users:%', 'an expired override is ignored');
+
+-- Growth overage (counted, not blocked)
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-00000000000d', 'Growth WS', 'ws-growth');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start)
+  select '10000000-0000-0000-0000-00000000000d', id, 'active', 'manual', 'month', now() from public.plans where code = 'growth';
+insert into public.workspace_entitlement_overrides (workspace_id, key, value, reason) values
+  ('10000000-0000-0000-0000-00000000000d', 'ai_replies_per_period', '1', 'test');
+select results_eq($$ select allowed, is_overage from public.consume_ai_reply('10000000-0000-0000-0000-00000000000d', 'g:1') $$,
+  $$ values (true, false) $$, 'Growth: included reply');
+select results_eq($$ select allowed, is_overage from public.consume_ai_reply('10000000-0000-0000-0000-00000000000d', 'g:2') $$,
+  $$ values (true, true) $$, 'Growth: beyond the included replies is allowed as overage');
+select is((select overage_replies from public.usage_periods where workspace_id = '10000000-0000-0000-0000-00000000000d'),
+  1, 'overage replies are counted for manual invoicing');
+
+-- pending_activation never unlocks the target plan (review fix 0013).
+select lives_ok(
+  $$ insert into public.subscriptions (workspace_id, plan_id, status, provider)
+     select '10000000-0000-0000-0000-00000000000b', id, 'pending_activation', 'paypal' from public.plans where code = 'enterprise' $$,
+  'a pending subscription can sit beside the live trial');
+select is(private.entitlement_int('10000000-0000-0000-0000-00000000000b', 'max_bots'), 1,
+  'pending Enterprise does not raise limits');
+select ok(not private.entitlement_bool('10000000-0000-0000-0000-00000000000b', 'api_access'),
+  'pending Enterprise does not unlock features');
+
+-- Upgrading mid-trial opens a new period on the new plan.
+update public.subscriptions set status = 'expired', ended_at = now()
+ where workspace_id = '10000000-0000-0000-0000-00000000000b' and status = 'trialing';
+update public.subscriptions s set status = 'active', billing_interval = 'month', current_period_start = now(),
+       plan_id = (select id from public.plans where code = 'growth')
+ where s.workspace_id = '10000000-0000-0000-0000-00000000000b' and s.status = 'pending_activation';
+select results_eq($$ select reason, included from public.consume_ai_reply('10000000-0000-0000-0000-00000000000b', 'after-upgrade:1') $$,
+  $$ values ('ok'::text, 5000) $$, 'after upgrading, replies use the new plan''s period');
+
+-- Monthly period bounds (UTC, month-end anchors)
+select results_eq($$ select * from private.monthly_period_bounds('2027-01-31 10:00Z', '2027-02-28 12:00Z') $$,
+  $$ values ('2027-02-28 10:00Z'::timestamptz, '2027-03-31 10:00Z'::timestamptz) $$,
+  'a Jan 31 anchor never yields a period that already ended');
+select results_eq($$ select * from private.monthly_period_bounds('2026-11-26 08:00Z', '2026-12-27 00:00Z') $$,
+  $$ values ('2026-12-26 08:00Z'::timestamptz, '2027-01-26 08:00Z'::timestamptz) $$,
+  'monthly periods follow the subscription anchor');
 
 select * from finish();
 rollback;

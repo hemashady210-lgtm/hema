@@ -22,8 +22,8 @@ insert into public.workspace_members (workspace_id, user_id, role) values
 insert into public.bots (id, workspace_id, name) values
   ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'Bot A'),
   ('20000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000b', 'Bot B');
-insert into public.knowledge_sources (id, workspace_id, type, title) values
-  ('30000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000b', 'qa', 'FAQ B');
+insert into public.kb_sources (id, workspace_id, type, title) values
+  ('30000000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-00000000000b', 'faq', 'FAQ B');
 
 -- Act as user A.
 set local role authenticated;
@@ -35,10 +35,10 @@ end $$;
 select results_eq($$ select slug from public.workspaces $$::text, $$ values ('ws-a') $$::text,
   'user A sees only workspace A');
 select is((select count(*)::int from public.bots), 1, 'user A sees only own bots');
-select is((select count(*)::int from public.knowledge_sources), 0, 'user A cannot see B knowledge sources');
-select is((select count(*)::int from public.knowledge_chunks), 0, 'chunks are not client-readable');
-select is((select count(*)::int from public.jobs), 0, 'jobs are not client-readable');
-select is((select count(*)::int from public.payment_webhook_events), 0, 'webhook inbox not client-readable');
+select is((select count(*)::int from public.kb_sources), 0, 'user A cannot see B knowledge sources');
+select throws_ok($$ select count(*) from public.kb_chunks $$, '42501', null, 'chunks are not client-readable');
+select throws_ok($$ select count(*) from public.jobs $$, '42501', null, 'jobs are not client-readable');
+select throws_ok($$ select count(*) from public.webhook_events $$, '42501', null, 'webhook inbox not client-readable');
 
 update public.bots set name = 'hacked' where id = '20000000-0000-0000-0000-00000000000b';
 select is((select count(*)::int from public.bots where name = 'hacked'), 0, 'cross-tenant update affects 0 rows');
@@ -50,7 +50,7 @@ select throws_ok(
   $$ update public.workspaces set status = 'active' $$,
   '42501', null, 'workspace.status is not client-updatable');
 select throws_ok(
-  $$ insert into public.messages (workspace_id, conversation_id, channel_connection_id, direction, sender_type, delivery_status)
+  $$ insert into public.messages (workspace_id, conversation_id, channel_id, direction, sender, delivery_status)
      values ('10000000-0000-0000-0000-00000000000a', gen_random_uuid(), gen_random_uuid(), 'outbound', 'ai', 'queued') $$,
   '42501', null, 'messages are written by edge functions only');
 select throws_ok(

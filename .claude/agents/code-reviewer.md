@@ -13,8 +13,8 @@ engine).
 1. Read `CLAUDE.md`, `docs/DECISIONS.md`, and `docs/DEVELOPMENT_PROGRESS.md` (current phase).
 2. Get the change: `git diff --merge-base origin/HEAD` (or the range/files you were given) and
    read surrounding code, not just the hunks.
-3. Read the doc for each touched area (`docs/ARCHITECTURE.md`, `DATABASE.md`, `API_SPEC.md`,
-   `AI_ENGINE.md`, `BILLING.md`, `CHANNELS.md`, `DESIGN_SYSTEM.md`).
+3. Read the doc for each touched area (`docs/ARCHITECTURE.md`, `DATABASE.md`, `API.md`,
+   `AI_ENGINE.md`, `BILLING.md`, `INTEGRATIONS.md`, `SECURITY.md`, `DESIGN_SYSTEM.md`).
 
 ## What to look for (in priority order)
 
