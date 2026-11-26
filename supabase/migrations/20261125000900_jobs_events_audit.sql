@@ -2,7 +2,8 @@
 -- 0009 · Job queue, webhook inbox, outbox events (n8n/Resend), audit log, API keys,
 --        data requests, platform settings, internal admin notes
 -- P2: generic `webhook_events` for Meta + PayPal with status + attempts (E9);
--- jobs dead-letter retry via retry_job() (E1, 0010).
+-- jobs dead-letter retry via retry_job() (E1, 0010); notifications (in-app, §12.12);
+-- feature_flags (+ `meta_embedded_signup`, OFF, E2).
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -87,6 +88,7 @@ create table public.platform_events (
 );
 create index platform_events_pending_idx on public.platform_events (created_at)
   where email_status = 'pending' or n8n_status = 'pending';
+create index platform_events_workspace_idx on public.platform_events (workspace_id, created_at desc);
 
 -- -----------------------------------------------------------------------------
 -- audit_logs — security-relevant and admin actions (append-only)
@@ -124,6 +126,7 @@ create table public.internal_notes (
   created_at   timestamptz not null default now()
 );
 create index internal_notes_entity_idx on public.internal_notes (entity_type, entity_id);
+create index internal_notes_workspace_idx on public.internal_notes (workspace_id);
 
 -- -----------------------------------------------------------------------------
 -- api_keys — Enterprise public API (entitlement `api_access`). Only the hash is stored.
@@ -174,6 +177,53 @@ create table public.platform_settings (
   updated_at timestamptz not null default now()
 );
 
+alter table public.billing_events
+  add constraint billing_events_webhook_fk foreign key (webhook_event_id)
+  references public.webhook_events (id) on delete set null;
+
+-- -----------------------------------------------------------------------------
+-- notifications — in-app notification center (§12.12; UI + producers in P15). One row per
+-- recipient. Removing a member removes their notifications (FK to the membership).
+-- -----------------------------------------------------------------------------
+create table public.notifications (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null,
+  user_id      uuid not null,
+  -- e.g. handoff.requested, usage.threshold_reached, channel.connected, trial.ending
+  type         text not null check (type ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$'),
+  title        jsonb not null check (private.is_i18n_text(title) and title <> '{}'::jsonb),
+  body         jsonb check (private.is_i18n_text(body)),
+  data         jsonb not null default '{}'::jsonb check (jsonb_typeof(data) = 'object'),
+  read_at      timestamptz,
+  created_at   timestamptz not null default now(),
+  foreign key (workspace_id, user_id)
+    references public.workspace_members (workspace_id, user_id) on delete cascade
+);
+create index notifications_unread_idx on public.notifications (user_id, created_at desc) where read_at is null;
+create index notifications_workspace_idx on public.notifications (workspace_id, created_at desc);
+
+-- -----------------------------------------------------------------------------
+-- feature_flags — global defaults + per-workspace overrides (§6). Resolved by
+-- private.feature_enabled(key, workspace): workspace row → global row → false.
+-- Edited by Super Admin (P14) through the service role.
+-- -----------------------------------------------------------------------------
+create table public.feature_flags (
+  id           uuid primary key default gen_random_uuid(),
+  key          text not null check (key ~ '^[a-z][a-z0-9_]*$'),
+  scope        public.feature_flag_scope not null,
+  workspace_id uuid references public.workspaces (id) on delete cascade,
+  enabled      boolean not null default false,
+  description  text,
+  updated_by   uuid references auth.users (id),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  check ((scope = 'global') = (workspace_id is null)),
+  unique nulls not distinct (key, workspace_id)
+);
+create index feature_flags_workspace_idx on public.feature_flags (workspace_id) where workspace_id is not null;
+create trigger feature_flags_updated_at before update on public.feature_flags
+  for each row execute function private.set_updated_at();
+
 -- -----------------------------------------------------------------------------
 -- RLS — all internal except what owners must see.
 -- -----------------------------------------------------------------------------
@@ -185,6 +235,8 @@ alter table public.internal_notes    enable row level security;
 alter table public.api_keys          enable row level security;
 alter table public.data_requests     enable row level security;
 alter table public.platform_settings enable row level security;
+alter table public.notifications     enable row level security;
+alter table public.feature_flags     enable row level security;
 
 -- Service role only: queue, webhook inbox, outbox, Super Admin notes, platform settings.
 revoke all on public.jobs, public.webhook_events, public.platform_events, public.internal_notes,
@@ -206,3 +258,17 @@ grant select (id, workspace_id, name, key_prefix, scopes, created_by, last_used_
 create policy data_requests_select on public.data_requests for select to authenticated
   using (private.has_workspace_role(workspace_id, array['owner']::public.workspace_role[]));
 revoke insert, update, delete on public.data_requests from authenticated;
+
+-- Notifications: each user sees and marks read only their own, in workspaces they belong to.
+create policy notifications_select_own on public.notifications for select to authenticated
+  using (user_id = (select auth.uid()) and private.is_workspace_member(workspace_id));
+create policy notifications_update_own on public.notifications for update to authenticated
+  using (user_id = (select auth.uid()) and private.is_workspace_member(workspace_id))
+  with check (user_id = (select auth.uid()));
+revoke insert, update, delete on public.notifications from anon, authenticated;
+grant update (read_at) on public.notifications to authenticated;
+
+-- Feature flags: readable (global + own workspaces) so the UI can hide flagged features.
+create policy feature_flags_select on public.feature_flags for select to authenticated
+  using (scope = 'global' or private.is_workspace_member(workspace_id));
+revoke insert, update, delete on public.feature_flags from anon, authenticated;

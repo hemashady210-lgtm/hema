@@ -3,7 +3,9 @@
 -- Everything plan-related is DATA (decision B). Seeded in 0012, edited by Super Admin.
 -- Money = integer minor units + ISO currency (proposal P14).
 -- P2: subscription status `grace` + grace_ends_at (E4); billing_transactions →
--- payment_transactions (E9); the webhook inbox is generic (`webhook_events`, 0009).
+-- payment_transactions (E9); the webhook inbox is generic (`webhook_events`, 0009);
+-- new billing_events (append-only audit of every billing state change, §14) and
+-- invoices_records (manual overage invoices, C5).
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -271,6 +273,72 @@ create table public.usage_alerts (
 create index usage_alerts_workspace_idx on public.usage_alerts (workspace_id);
 
 -- -----------------------------------------------------------------------------
+-- billing_events — append-only history of every billing state change (§14): subscription
+-- status transitions, plan changes, payments recorded, manual activations. Written in the
+-- same transaction as the change by `api` / `webhook-paypal` (P12).
+-- -----------------------------------------------------------------------------
+create table public.billing_events (
+  id                     bigint generated always as identity primary key,
+  workspace_id           uuid not null references public.workspaces (id) on delete cascade,
+  subscription_id        uuid,
+  -- e.g. subscription.status_changed, subscription.plan_changed, payment.recorded,
+  -- payment.refunded, subscription.manual_activated, overage.invoiced
+  event_type             text not null check (event_type ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$'),
+  from_status            public.subscription_status,
+  to_status              public.subscription_status,
+  source                 text not null check (source in ('paypal_webhook', 'admin', 'system', 'user')),
+  actor_type             public.actor_type not null,
+  actor_id               uuid,
+  webhook_event_id       bigint,          -- FK added in 0009 (webhook_events)
+  payment_transaction_id uuid,
+  data                   jsonb not null default '{}'::jsonb,
+  created_at             timestamptz not null default now(),
+  foreign key (workspace_id, subscription_id)
+    references public.subscriptions (workspace_id, id) on delete set null (subscription_id),
+  foreign key (workspace_id, payment_transaction_id)
+    references public.payment_transactions (workspace_id, id) on delete set null (payment_transaction_id)
+);
+create index billing_events_ws_idx on public.billing_events (workspace_id, created_at desc);
+create trigger billing_events_append_only before update or delete on public.billing_events
+  for each row execute function private.reject_mutation();
+
+-- -----------------------------------------------------------------------------
+-- invoices_records — manual invoices (overage in v1, C5; tracked automatically, invoiced
+-- manually). One live overage invoice per usage period.
+-- -----------------------------------------------------------------------------
+create table public.invoices_records (
+  id                     uuid primary key default gen_random_uuid(),
+  workspace_id           uuid not null references public.workspaces (id) on delete cascade,
+  usage_period_id        uuid,
+  kind                   text not null default 'overage' check (kind in ('overage', 'manual')),
+  status                 public.invoice_status not null default 'draft',
+  units                  integer check (units >= 0),
+  amount_cents           bigint not null check (amount_cents >= 0),
+  currency               char(3) not null default 'USD',
+  description            text,
+  issued_at              timestamptz,
+  due_at                 timestamptz,
+  paid_at                timestamptz,
+  payment_transaction_id uuid,
+  created_by             uuid references auth.users (id),
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  unique (workspace_id, id),
+  foreign key (workspace_id, usage_period_id)
+    references public.usage_periods (workspace_id, id) on delete set null (usage_period_id),
+  foreign key (workspace_id, payment_transaction_id)
+    references public.payment_transactions (workspace_id, id) on delete set null (payment_transaction_id),
+  check (kind <> 'overage' or usage_period_id is not null),
+  check (status not in ('issued', 'paid') or issued_at is not null),
+  check (status <> 'paid' or paid_at is not null)
+);
+create unique index invoices_records_one_overage_per_period on public.invoices_records (usage_period_id)
+  where kind = 'overage' and status <> 'void';
+create index invoices_records_ws_idx on public.invoices_records (workspace_id, created_at desc);
+create trigger invoices_records_updated_at before update on public.invoices_records
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
 alter table public.entitlement_definitions         enable row level security;
@@ -287,6 +355,8 @@ alter table public.manual_payment_requests         enable row level security;
 alter table public.usage_periods                   enable row level security;
 alter table public.usage_events                    enable row level security;
 alter table public.usage_alerts                    enable row level security;
+alter table public.billing_events                  enable row level security;
+alter table public.invoices_records                enable row level security;
 
 -- Public pricing data (pricing page is pre-login).
 create policy entitlement_definitions_read on public.entitlement_definitions for select
@@ -336,3 +406,11 @@ create policy usage_alerts_select on public.usage_alerts for select to authentic
 revoke insert, update, delete on public.usage_alerts from authenticated;
 -- usage_events: service role only (ledger).
 revoke all on public.usage_events from anon, authenticated;
+
+create policy billing_events_select on public.billing_events for select to authenticated
+  using (private.has_workspace_role(workspace_id, array['owner', 'admin']::public.workspace_role[]));
+revoke insert, update, delete on public.billing_events from authenticated;
+
+create policy invoices_records_select on public.invoices_records for select to authenticated
+  using (private.has_workspace_role(workspace_id, array['owner', 'admin']::public.workspace_role[]));
+revoke insert, update, delete on public.invoices_records from authenticated;

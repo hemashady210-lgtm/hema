@@ -17,13 +17,11 @@ create schema if not exists private;
 revoke all on schema private from public;
 grant usage on schema private to authenticated, service_role;
 
--- Secure by default: functions created by this role are not executable by PUBLIC (and, in
--- `public`, not by anon/authenticated either) until a migration grants it explicitly.
-alter default privileges in schema private revoke execute on functions from public;
-alter default privileges in schema public revoke execute on functions from public;
-alter default privileges in schema public revoke execute on functions from anon, authenticated;
--- `anon` gets no table access by default; public catalogue tables (pricing) grant SELECT
--- explicitly in 0008. RLS still applies to every table on top of these privileges.
+-- Privileges: every function is revoked from PUBLIC/anon/authenticated explicitly and granted
+-- per use (0010, 0011); `anon` gets table access only to the pricing catalogue (0012).
+-- Suite 03_schema_conventions enforces both rules for every future migration.
+-- (Per-schema ALTER DEFAULT PRIVILEGES cannot revoke Postgres' built-in PUBLIC EXECUTE, and
+-- a global change would also strip EXECUTE from extensions created later.)
 alter default privileges in schema public revoke all on tables from anon;
 alter default privileges in schema public revoke all on sequences from anon;
 
@@ -126,12 +124,18 @@ as $$
 $$;
 
 -- Generic guard for append-only tables (audit_logs, billing_events, bot_configs, ...).
+-- Direct UPDATE/DELETE is rejected. Changes made by foreign-key actions (a parent row
+-- deleted → cascade / set null) run at trigger depth > 1 and are allowed, so deleting a
+-- workspace (C10 data deletion) still works.
 create or replace function private.reject_mutation()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  if pg_trigger_depth() > 1 then
+    return case when tg_op = 'DELETE' then old else new end;
+  end if;
   raise exception '% is append-only', tg_table_name using errcode = '42501';
 end;
 $$;

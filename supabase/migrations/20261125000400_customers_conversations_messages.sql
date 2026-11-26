@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 0004 · Customers, conversations, messages, attachments, handoffs
 -- P2 (DECISIONS §E): contacts → customers (E9), conversation status + handler (E10),
--- messages.sender / content (§6), sandbox markers (`is_test`) for the playground (gap).
+-- messages.sender / content (§6), sandbox markers (`is_test`) for the playground (gap),
+-- customer notes + conversation internal notes (gap; UI in P9).
 -- Inbound messages are free (analytics only); billing counts AI replies (0008/0010).
 -- =============================================================================
 
@@ -158,6 +159,39 @@ create index handoffs_conversation_idx on public.handoffs (conversation_id);
 create trigger handoffs_updated_at before update on public.handoffs
   for each row execute function private.set_updated_at();
 
+-- Notes written by workspace agents. Never sent to customers. (Super Admin notes are a
+-- separate, platform-only table: internal_notes, 0009.)
+create table public.customer_notes (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null,
+  customer_id  uuid not null,
+  author_id    uuid not null references auth.users (id),
+  body         text not null check (char_length(body) between 1 and 4000),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  foreign key (workspace_id, customer_id) references public.customers (workspace_id, id) on delete cascade
+);
+create index customer_notes_customer_idx on public.customer_notes (customer_id, created_at desc);
+create index customer_notes_workspace_idx on public.customer_notes (workspace_id);
+create trigger customer_notes_updated_at before update on public.customer_notes
+  for each row execute function private.set_updated_at();
+
+create table public.conversation_notes (
+  id              uuid primary key default gen_random_uuid(),
+  workspace_id    uuid not null,
+  conversation_id uuid not null,
+  author_id       uuid not null references auth.users (id),
+  body            text not null check (char_length(body) between 1 and 4000),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  foreign key (workspace_id, conversation_id)
+    references public.conversations (workspace_id, id) on delete cascade
+);
+create index conversation_notes_conversation_idx on public.conversation_notes (conversation_id, created_at);
+create index conversation_notes_workspace_idx on public.conversation_notes (workspace_id);
+create trigger conversation_notes_updated_at before update on public.conversation_notes
+  for each row execute function private.set_updated_at();
+
 -- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
@@ -167,6 +201,8 @@ alter table public.conversations       enable row level security;
 alter table public.messages            enable row level security;
 alter table public.message_attachments enable row level security;
 alter table public.handoffs            enable row level security;
+alter table public.customer_notes      enable row level security;
+alter table public.conversation_notes  enable row level security;
 
 create policy customers_select on public.customers for select to authenticated
   using (private.is_workspace_member(workspace_id));
@@ -203,3 +239,36 @@ revoke insert, update, delete on public.message_attachments from authenticated;
 create policy handoffs_select on public.handoffs for select to authenticated
   using (private.is_workspace_member(workspace_id));
 revoke insert, update, delete on public.handoffs from authenticated;
+
+-- Notes: members read; owner/admin/agent write as themselves; authors edit/delete their own.
+create policy customer_notes_select on public.customer_notes for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy customer_notes_insert on public.customer_notes for insert to authenticated
+  with check (private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[])
+              and author_id = (select auth.uid()));
+create policy customer_notes_update on public.customer_notes for update to authenticated
+  using (author_id = (select auth.uid())
+         and private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[]))
+  with check (author_id = (select auth.uid()));
+create policy customer_notes_delete on public.customer_notes for delete to authenticated
+  using (author_id = (select auth.uid())
+         and private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[]));
+revoke insert, update on public.customer_notes from authenticated;
+grant insert (workspace_id, customer_id, author_id, body) on public.customer_notes to authenticated;
+grant update (body) on public.customer_notes to authenticated;
+
+create policy conversation_notes_select on public.conversation_notes for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy conversation_notes_insert on public.conversation_notes for insert to authenticated
+  with check (private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[])
+              and author_id = (select auth.uid()));
+create policy conversation_notes_update on public.conversation_notes for update to authenticated
+  using (author_id = (select auth.uid())
+         and private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[]))
+  with check (author_id = (select auth.uid()));
+create policy conversation_notes_delete on public.conversation_notes for delete to authenticated
+  using (author_id = (select auth.uid())
+         and private.can_write(workspace_id, array['owner', 'admin', 'agent']::public.workspace_role[]));
+revoke insert, update on public.conversation_notes from authenticated;
+grant insert (workspace_id, conversation_id, author_id, body) on public.conversation_notes to authenticated;
+grant update (body) on public.conversation_notes to authenticated;

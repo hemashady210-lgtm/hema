@@ -7,7 +7,8 @@
 --   * hybrid retrieval: pgvector + full-text with reciprocal-rank fusion
 --   * bookkeeping triggers (order numbers, inbound counters, previews, re-embedding)
 -- All functions: SECURITY DEFINER where needed, empty search_path, schema-qualified names.
--- P2: renamed objects (E9), `grace` (E4), channel statuses (E5), test runs never billed.
+-- P2: renamed objects (E9), `grace` (E4), channel statuses (E5), test runs never billed,
+-- retry_job() (E1), feature flags, bot_configs versioning, credential/Vault hygiene.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -536,6 +537,40 @@ as $$
   select count(*)::integer from r;
 $$;
 
+-- Dead-letter retry (E1): re-queue a `dead` job with a fresh attempt budget. Called by the
+-- `api` admin/* route (P14) with the platform admin's user id; audited. Returns false if
+-- the job is not dead (nothing changes).
+create or replace function public.retry_job(
+  p_job_id bigint,
+  p_actor_id uuid default null,
+  p_reason text default null
+)
+returns boolean
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_job public.jobs;
+begin
+  update public.jobs j
+     set status = 'queued', attempts = 0, run_at = now(),
+         locked_at = null, locked_by = null, lock_expires_at = null, finished_at = null,
+         retry_count = j.retry_count + 1
+   where j.id = p_job_id and j.status = 'dead'
+  returning * into v_job;
+  if not found then
+    return false;
+  end if;
+
+  insert into public.audit_logs (workspace_id, actor_type, actor_id, action, entity_type, entity_id, changes)
+  values (v_job.workspace_id,
+          case when p_actor_id is null then 'system'::public.actor_type else 'platform_admin'::public.actor_type end,
+          p_actor_id, 'job.retry', 'job', p_job_id::text,
+          jsonb_build_object('type', v_job.type, 'retry_count', v_job.retry_count,
+                             'last_error', v_job.last_error, 'reason', left(p_reason, 500)));
+  return true;
+end;
+$$;
+
 revoke all on function public.enqueue_job(text, jsonb, uuid, text, timestamptz, text, smallint) from public, anon, authenticated;
 revoke all on function public.claim_jobs(text, text, integer, integer) from public, anon, authenticated;
 revoke all on function public.complete_job(bigint) from public, anon, authenticated;
@@ -546,6 +581,8 @@ grant execute on function public.claim_jobs(text, text, integer, integer) to ser
 grant execute on function public.complete_job(bigint) to service_role;
 grant execute on function public.fail_job(bigint, text, boolean) to service_role;
 grant execute on function public.requeue_stuck_jobs() to service_role;
+revoke all on function public.retry_job(bigint, uuid, text) from public, anon, authenticated;
+grant execute on function public.retry_job(bigint, uuid, text) to service_role;
 
 -- -----------------------------------------------------------------------------
 -- Hybrid retrieval (vector + full-text, reciprocal-rank fusion, k = 60).
@@ -698,7 +735,110 @@ $$;
 create trigger conversations_check_assignee before insert or update of assigned_to on public.conversations
   for each row execute function private.check_conversation_assignee();
 
--- Lock down private helpers: clients only need the RLS helpers (used inside policies).
+create trigger policies_reindex after insert or update or delete on public.policies
+  for each row execute function private.enqueue_reindex('policy');
+create trigger working_hours_reindex after insert or update or delete on public.working_hours
+  for each row execute function private.enqueue_reindex('profile');
+create trigger working_hours_overrides_reindex after insert or update or delete on public.working_hours_overrides
+  for each row execute function private.enqueue_reindex('profile');
+
+-- -----------------------------------------------------------------------------
+-- Feature flags: workspace row → global row → false.
+-- -----------------------------------------------------------------------------
+create or replace function private.feature_enabled(p_key text, p_workspace_id uuid default null)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select coalesce(
+    (select f.enabled from public.feature_flags f
+      where f.key = p_key and f.workspace_id = p_workspace_id and p_workspace_id is not null),
+    (select f.enabled from public.feature_flags f where f.key = p_key and f.workspace_id is null),
+    false);
+$$;
+
+-- -----------------------------------------------------------------------------
+-- bot_configs: version n+1 per bot (serialized per bot), author stamped.
+-- -----------------------------------------------------------------------------
+create or replace function private.assign_bot_config_version()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('bot_config:' || new.bot_id::text, 0));
+  select coalesce(max(c.version), 0) + 1 into new.version
+  from public.bot_configs c where c.bot_id = new.bot_id;
+  new.created_by := coalesce((select auth.uid()), new.created_by);
+  return new;
+end;
+$$;
+create trigger bot_configs_assign_version before insert on public.bot_configs
+  for each row execute function private.assign_bot_config_version();
+
+-- Knowledge gaps: resolver + time stamped by the database, not the client.
+create or replace function private.on_knowledge_gap_status()
+returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if new.status is distinct from old.status then
+    if new.status = 'resolved' then
+      new.resolved_at := now();
+      new.resolved_by := (select auth.uid());
+    else
+      new.resolved_at := null;
+      new.resolved_by := null;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger knowledge_gaps_status before update of status on public.knowledge_gaps
+  for each row execute function private.on_knowledge_gap_status();
+
+-- Rows that only make sense for a given channel type. tg_argv[0]: a channel_type, or
+-- 'meta' for any of whatsapp / messenger / instagram.
+create or replace function private.assert_channel_type()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_type public.channel_type;
+begin
+  select c.channel_type into v_type from public.channels c
+  where c.id = new.channel_id and c.workspace_id = new.workspace_id;
+  if v_type is null
+     or (tg_argv[0] = 'meta' and v_type = 'widget')
+     or (tg_argv[0] <> 'meta' and v_type::text <> tg_argv[0]) then
+    raise exception 'channel_type_mismatch:%', tg_argv[0] using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+create trigger whatsapp_templates_channel_type before insert or update of channel_id on public.whatsapp_templates
+  for each row execute function private.assert_channel_type('whatsapp');
+create trigger channel_credentials_channel_type before insert or update of channel_id on public.channel_credentials
+  for each row execute function private.assert_channel_type('meta');
+
+-- Removing or replacing a credential row also deletes the Vault secret it pointed to, so
+-- no orphaned tokens remain (also on channel / workspace deletion via cascade).
+create or replace function private.on_channel_credential_removed()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' or new.vault_secret_id is distinct from old.vault_secret_id then
+    delete from vault.secrets s where s.id = old.vault_secret_id;
+  end if;
+  return null;
+end;
+$$;
+create trigger channel_credentials_vault_cleanup after update of vault_secret_id or delete on public.channel_credentials
+  for each row execute function private.on_channel_credential_removed();
+
+-- Lock down functions. Public RPCs are granted per function above (service_role) or below.
+revoke all on all functions in schema public from public, anon, authenticated;
+grant execute on function public.get_workspace_entitlements(uuid) to authenticated;
+-- Private helpers: clients only need the RLS helpers (used inside policies).
 revoke all on all functions in schema private from public, anon, authenticated;
 grant execute on function
   private.is_workspace_member(uuid),

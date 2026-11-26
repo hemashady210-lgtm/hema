@@ -2,6 +2,7 @@
 -- 0005 · Knowledge base (RAG) and product/menu catalog
 -- P2 (E9): knowledge_sources → kb_sources + kb_documents, knowledge_qa → faqs (+ tags),
 -- knowledge_chunks → kb_chunks (+ document_id). Source types per §6.
+-- New: knowledge_gaps (questions the AI could not answer, §9; logged in P6, listed in P10).
 -- Embeddings: Voyage AI, 1024 dims (proposal P10 — dimension needs verification per model).
 -- =============================================================================
 
@@ -164,6 +165,38 @@ create trigger catalog_items_updated_at before update on public.catalog_items
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
+-- knowledge_gaps — the AI said it does not know (never invents, §9). Repeats of the same
+-- question are folded into one row (`occurrences`, `last_seen_at`) by the AI worker.
+-- -----------------------------------------------------------------------------
+create table public.knowledge_gaps (
+  id              uuid primary key default gen_random_uuid(),
+  workspace_id    uuid not null references public.workspaces (id) on delete cascade,
+  bot_id          uuid,
+  conversation_id uuid,
+  message_id      uuid,
+  question        text not null check (char_length(question) between 1 and 2000),
+  language        text,
+  category        text check (category in (
+                    'menu_products', 'reservations', 'prices', 'working_hours',
+                    'services', 'complaints', 'orders', 'other')),
+  status          text not null default 'open' check (status in ('open', 'resolved', 'ignored')),
+  occurrences     integer not null default 1 check (occurrences > 0),
+  last_seen_at    timestamptz not null default now(),
+  resolved_by     uuid references auth.users (id),
+  resolved_at     timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  foreign key (workspace_id, bot_id) references public.bots (workspace_id, id) on delete set null (bot_id),
+  foreign key (workspace_id, conversation_id)
+    references public.conversations (workspace_id, id) on delete set null (conversation_id),
+  foreign key (workspace_id, message_id)
+    references public.messages (workspace_id, id) on delete set null (message_id)
+);
+create index knowledge_gaps_open_idx on public.knowledge_gaps (workspace_id, status, last_seen_at desc);
+create trigger knowledge_gaps_updated_at before update on public.knowledge_gaps
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
 alter table public.kb_sources         enable row level security;
@@ -172,6 +205,7 @@ alter table public.faqs               enable row level security;
 alter table public.kb_chunks          enable row level security;
 alter table public.catalog_categories enable row level security;
 alter table public.catalog_items      enable row level security;
+alter table public.knowledge_gaps     enable row level security;
 
 create policy kb_sources_select on public.kb_sources for select to authenticated
   using (private.is_workspace_member(workspace_id));
@@ -217,3 +251,11 @@ create policy catalog_items_select on public.catalog_items for select to authent
   using (private.is_workspace_member(workspace_id));
 create policy catalog_items_write on public.catalog_items for all to authenticated
   using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+-- Knowledge gaps: members read; owner/admin triage (status only; resolver stamped by trigger).
+create policy knowledge_gaps_select on public.knowledge_gaps for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy knowledge_gaps_update on public.knowledge_gaps for update to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+revoke insert, update, delete on public.knowledge_gaps from authenticated;
+grant update (status) on public.knowledge_gaps to authenticated;

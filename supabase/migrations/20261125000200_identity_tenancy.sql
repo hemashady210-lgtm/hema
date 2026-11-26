@@ -118,6 +118,30 @@ create trigger branches_updated_at before update on public.branches
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
+-- workspace_onboarding — saveable, resumable wizard state (§12.1, gap; UI in P4)
+-- Steps follow §12.1. `data` holds draft answers not yet saved into their real tables.
+-- -----------------------------------------------------------------------------
+create table public.workspace_onboarding (
+  workspace_id    uuid primary key references public.workspaces (id) on delete cascade,
+  current_step    text not null default 'business_basics' check (current_step in (
+                    'business_basics', 'category', 'branches', 'working_hours', 'contact',
+                    'catalog', 'faqs', 'policies', 'ai_instructions', 'files', 'first_bot',
+                    'widget', 'done')),
+  completed_steps text[] not null default '{}' check (completed_steps <@ array[
+                    'business_basics', 'category', 'branches', 'working_hours', 'contact',
+                    'catalog', 'faqs', 'policies', 'ai_instructions', 'files', 'first_bot',
+                    'widget']::text[]),
+  skipped_steps   text[] not null default '{}',
+  data            jsonb not null default '{}'::jsonb check (jsonb_typeof(data) = 'object'),
+  completed_at    timestamptz,
+  updated_by      uuid references auth.users (id),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create trigger workspace_onboarding_updated_at before update on public.workspace_onboarding
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
 -- RLS helper functions (SECURITY DEFINER, empty search_path, STABLE)
 -- -----------------------------------------------------------------------------
 create or replace function private.is_workspace_member(p_workspace_id uuid)
@@ -206,6 +230,7 @@ alter table public.workspaces            enable row level security;
 alter table public.workspace_members     enable row level security;
 alter table public.workspace_invitations enable row level security;
 alter table public.branches              enable row level security;
+alter table public.workspace_onboarding  enable row level security;
 
 -- profiles: see yourself and teammates; edit only yourself.
 create policy profiles_select on public.profiles for select to authenticated
@@ -249,3 +274,19 @@ create policy branches_select on public.branches for select to authenticated
   using (private.is_workspace_member(workspace_id));
 create policy branches_write on public.branches for all to authenticated
   using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+-- Membership, invitations and profiles are written through `api` (owner rules, `max_users`).
+revoke insert, update, delete on public.workspace_members, public.workspace_invitations
+  from authenticated;
+revoke insert, delete on public.profiles, public.workspaces from authenticated;
+revoke all on public.platform_admins from anon;
+revoke insert, update, delete on public.platform_admins from authenticated;
+
+-- Onboarding: members read; owner/admin save progress.
+create policy workspace_onboarding_select on public.workspace_onboarding for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy workspace_onboarding_insert on public.workspace_onboarding for insert to authenticated
+  with check (private.can_write(workspace_id));
+create policy workspace_onboarding_update on public.workspace_onboarding for update to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+revoke delete on public.workspace_onboarding from authenticated;

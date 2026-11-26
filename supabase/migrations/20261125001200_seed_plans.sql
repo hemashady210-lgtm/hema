@@ -1,6 +1,6 @@
 -- =============================================================================
 -- 0012 · Reference data: entitlement keys, plans, prices, one-time products,
---        model profiles, platform settings.
+--        model profiles, platform settings, feature flags.
 -- This is DATA, not code: Super Admin edits it afterwards (decision B). Idempotent.
 -- PayPal plan ids (provider_price_refs) are inserted per environment in P12.
 -- =============================================================================
@@ -140,3 +140,19 @@ insert into public.platform_settings (key, value, description) values
   ('widget_cdn_version', '"v1"', 'Widget script major version served from the CDN'),
   ('subscription_grace_days', '3', 'Days in `grace` after `past_due` before suspension (E4)')
 on conflict (key) do nothing;
+
+-- Feature flags (E2): Meta Embedded Signup v4 / Facebook Login for Business is built in P13
+-- and stays OFF until the owner enables it.
+insert into public.feature_flags (key, scope, workspace_id, enabled, description) values
+  ('meta_embedded_signup', 'global', null, false,
+   'Meta Embedded Signup v4 (WhatsApp) and Facebook Login for Business (Messenger, Instagram). Manual mode is the active path (E2).')
+on conflict (key, workspace_id) do nothing;
+
+-- -----------------------------------------------------------------------------
+-- Final privilege sweep (runs last): anon may only read the public pricing catalogue,
+-- whatever default grants the platform applies to new tables.
+-- -----------------------------------------------------------------------------
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+grant select on public.entitlement_definitions, public.plans, public.plan_prices,
+  public.plan_entitlements, public.one_time_products to anon;

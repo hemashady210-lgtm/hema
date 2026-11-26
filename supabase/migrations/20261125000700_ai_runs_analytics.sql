@@ -44,6 +44,48 @@ create table public.ai_model_prices (
   updated_at                      timestamptz not null default now()
 );
 
+-- -----------------------------------------------------------------------------
+-- bot_configs — versioned bot settings (§6, E9). Rows are immutable: saving settings
+-- inserts version n+1 (number assigned by trigger, 0010); bots.active_config_id points at
+-- the live version, so the playground can test a version before it goes live.
+-- No model selection here: routing comes from the `ai_model_profile` entitlement.
+-- -----------------------------------------------------------------------------
+create table public.bot_configs (
+  id                  uuid primary key default gen_random_uuid(),
+  workspace_id        uuid not null,
+  bot_id              uuid not null,
+  version             integer not null check (version > 0),
+  persona             text check (char_length(persona) <= 2000),
+  custom_instructions text check (char_length(custom_instructions) <= 4000),
+  tone                text not null default 'friendly'
+                        check (tone in ('friendly', 'professional', 'concise', 'luxury')),
+  greeting            jsonb check (private.is_i18n_text(greeting)),
+  -- Sent when AI cannot reply (quota exhausted, trial ended, provider failure).
+  fallback_message    jsonb not null default
+    '{"ar":"شكراً لتواصلك معنا، سيتم الرد عليك في أقرب وقت.","en":"Thanks for reaching out — we will get back to you shortly."}'::jsonb
+    check (private.is_i18n_text(fallback_message) and fallback_message <> '{}'::jsonb),
+  handoff_message     jsonb check (private.is_i18n_text(handoff_message)),
+  -- {"on_request":true,"on_complaint":true,"min_confidence":0.5,"keywords":["manager"]}
+  handoff_rules       jsonb not null default '{}'::jsonb check (jsonb_typeof(handoff_rules) = 'object'),
+  temperature         numeric(3, 2) not null default 0.30 check (temperature between 0 and 1),
+  max_output_tokens   integer not null default 1024 check (max_output_tokens between 64 and 4096),
+  change_note         text check (char_length(change_note) <= 500),
+  created_by          uuid references auth.users (id),
+  created_at          timestamptz not null default now(),
+  unique (workspace_id, id),
+  unique (bot_id, id),
+  unique (bot_id, version),
+  foreign key (workspace_id, bot_id) references public.bots (workspace_id, id) on delete cascade
+);
+create index bot_configs_workspace_idx on public.bot_configs (workspace_id);
+create trigger bot_configs_immutable before update on public.bot_configs
+  for each row execute function private.reject_mutation();
+
+-- The active version must belong to the same bot.
+alter table public.bots
+  add constraint bots_active_config_fk foreign key (id, active_config_id)
+  references public.bot_configs (bot_id, id) on delete set null (active_config_id);
+
 -- One row per AI generation attempt (billable or not).
 -- Token columns keep the provider's own names (E0): input / output / cache read / cache write
 -- (cache writes are priced differently, so one `cached_tokens` column cannot hold both).
@@ -123,6 +165,7 @@ create index question_classifications_ws_cat_idx on public.question_classificati
 -- RLS
 -- -----------------------------------------------------------------------------
 alter table public.ai_model_profiles        enable row level security;
+alter table public.bot_configs              enable row level security;
 alter table public.ai_model_prices          enable row level security;
 alter table public.ai_runs                  enable row level security;
 alter table public.question_classifications enable row level security;
@@ -130,6 +173,16 @@ alter table public.question_classifications enable row level security;
 -- Model profiles and model prices are internal platform config: service role only.
 revoke all on public.ai_model_profiles from anon, authenticated;
 revoke all on public.ai_model_prices from anon, authenticated;
+
+-- bot_configs: members read; owner/admin add versions; rows are never edited or deleted.
+create policy bot_configs_select on public.bot_configs for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy bot_configs_insert on public.bot_configs for insert to authenticated
+  with check (private.can_write(workspace_id));
+revoke insert, update, delete on public.bot_configs from authenticated;
+grant insert (workspace_id, bot_id, persona, custom_instructions, tone, greeting, fallback_message,
+              handoff_message, handoff_rules, temperature, max_output_tokens, change_note)
+  on public.bot_configs to authenticated;
 
 -- ai_runs are visible to owner/admin for transparency (tokens, latency); not to agents/viewers.
 -- Written by the AI worker only (§7).

@@ -2,7 +2,8 @@
 -- 0003 · Business profile, bots, channels, connection requests, widget settings
 -- P2 (DECISIONS §E): channel_connections → channels (E9), status/connection_mode (E5),
 -- widget_configs → widget_settings (E9/E13), bot settings → bot_configs (0007),
--- bot status + readiness_score + public_key (§6).
+-- bot status + readiness_score + public_key (§6). New: working_hours (+ overrides),
+-- typed policies, channel_credentials (service role only), whatsapp_templates.
 -- Meta Embedded Signup v4 / Facebook Login (P13, flag `meta_embedded_signup`) inserts
 -- rows with connection_mode = 'oauth' — no schema rewrite (E2).
 -- =============================================================================
@@ -37,6 +38,75 @@ create table public.business_profiles (
 );
 create index business_profiles_workspace_idx on public.business_profiles (workspace_id);
 create trigger business_profiles_updated_at before update on public.business_profiles
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- working_hours (+ overrides) — E9: replaces business_profiles.opening_hours/special_hours.
+-- Times are local to the branch timezone (else the workspace timezone). Several rows per
+-- weekday allow split shifts; close_time < open_time means the shift ends after midnight.
+-- weekday: 0 = Sunday … 6 = Saturday (Postgres `extract(dow ...)`).
+-- -----------------------------------------------------------------------------
+create table public.working_hours (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces (id) on delete cascade,
+  branch_id    uuid,
+  weekday      smallint not null check (weekday between 0 and 6),
+  is_closed    boolean not null default false,
+  open_time    time,
+  close_time   time,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  foreign key (workspace_id, branch_id) references public.branches (workspace_id, id) on delete cascade,
+  check (is_closed = (open_time is null)),
+  check ((open_time is null) = (close_time is null)),
+  check (open_time is distinct from close_time or open_time is null),
+  unique nulls not distinct (workspace_id, branch_id, weekday, open_time)
+);
+create index working_hours_workspace_idx on public.working_hours (workspace_id, branch_id, weekday);
+create trigger working_hours_updated_at before update on public.working_hours
+  for each row execute function private.set_updated_at();
+
+-- Holiday / special-day overrides for a specific date.
+create table public.working_hours_overrides (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces (id) on delete cascade,
+  branch_id    uuid,
+  date         date not null,
+  is_closed    boolean not null default true,
+  open_time    time,
+  close_time   time,
+  note         jsonb check (private.is_i18n_text(note)),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  foreign key (workspace_id, branch_id) references public.branches (workspace_id, id) on delete cascade,
+  check (is_closed = (open_time is null)),
+  check ((open_time is null) = (close_time is null)),
+  unique nulls not distinct (workspace_id, branch_id, date, open_time)
+);
+create index working_hours_overrides_workspace_idx on public.working_hours_overrides (workspace_id, date);
+create trigger working_hours_overrides_updated_at before update on public.working_hours_overrides
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- policies — typed business policies (§6, E9). Content is localized jsonb (CLAUDE.md).
+-- Used by the `get_policy` tool (E6) and embedded as kb chunks (source type `policy`).
+-- -----------------------------------------------------------------------------
+create table public.policies (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces (id) on delete cascade,
+  branch_id    uuid,
+  type         public.policy_type not null,
+  title        jsonb check (private.is_i18n_text(title)),
+  content      jsonb not null check (private.is_i18n_text(content) and content <> '{}'::jsonb),
+  is_active    boolean not null default true,
+  sort_order   integer not null default 0,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (workspace_id, id),
+  foreign key (workspace_id, branch_id) references public.branches (workspace_id, id) on delete cascade
+);
+create index policies_workspace_idx on public.policies (workspace_id, type);
+create trigger policies_updated_at before update on public.policies
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
@@ -128,6 +198,57 @@ create unique index channels_external_unique
 -- One widget per bot.
 create unique index channels_one_widget_per_bot on public.channels (bot_id) where channel_type = 'widget';
 create trigger channels_updated_at before update on public.channels
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- channel_credentials — §6 / gap finding: credentials live in a table NO client role can
+-- read (Phase 01 kept the Vault reference on the member-readable channel row). The access
+-- token itself is stored in Supabase Vault (P5); this row only holds the Vault secret id.
+-- Written by the `api` admin/* routes and the P13 OAuth flow with the service role.
+-- -----------------------------------------------------------------------------
+create table public.channel_credentials (
+  id              uuid primary key default gen_random_uuid(),
+  workspace_id    uuid not null references public.workspaces (id) on delete cascade,
+  channel_id      uuid not null unique,
+  vault_secret_id uuid not null unique,     -- vault.secrets.id; never the token itself
+  -- Granted permissions as reported by Meta (exact names = needs verification, P13).
+  scopes          text[] not null default '{}',
+  expires_at      timestamptz,              -- null = no known expiry
+  last_rotated_at timestamptz,
+  created_by      uuid references auth.users (id),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  foreign key (workspace_id, channel_id) references public.channels (workspace_id, id) on delete cascade
+);
+create index channel_credentials_workspace_idx on public.channel_credentials (workspace_id);
+create index channel_credentials_expiry_idx on public.channel_credentials (expires_at) where expires_at is not null;
+create trigger channel_credentials_updated_at before update on public.channel_credentials
+  for each row execute function private.set_updated_at();
+
+-- -----------------------------------------------------------------------------
+-- whatsapp_templates — approved message templates for sending outside the 24 h customer
+-- service window (§11.2; sending in P13, management later). `category` and `status` hold
+-- the provider's values as returned by Meta (needs verification), not our own enum.
+-- -----------------------------------------------------------------------------
+create table public.whatsapp_templates (
+  id                   uuid primary key default gen_random_uuid(),
+  workspace_id         uuid not null references public.workspaces (id) on delete cascade,
+  channel_id           uuid not null,
+  name                 text not null check (char_length(name) between 1 and 512),
+  language             text not null,       -- provider locale code, e.g. 'ar', 'en_US'
+  category             text,
+  status               text not null,
+  components           jsonb not null default '[]'::jsonb check (jsonb_typeof(components) = 'array'),
+  external_template_id text,
+  rejection_reason     text,
+  last_synced_at       timestamptz,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  unique (channel_id, name, language),
+  foreign key (workspace_id, channel_id) references public.channels (workspace_id, id) on delete cascade
+);
+create index whatsapp_templates_workspace_idx on public.whatsapp_templates (workspace_id);
+create trigger whatsapp_templates_updated_at before update on public.whatsapp_templates
   for each row execute function private.set_updated_at();
 
 -- -----------------------------------------------------------------------------
@@ -230,6 +351,11 @@ create trigger widget_settings_updated_at before update on public.widget_setting
 -- RLS
 -- -----------------------------------------------------------------------------
 alter table public.business_profiles           enable row level security;
+alter table public.working_hours               enable row level security;
+alter table public.working_hours_overrides     enable row level security;
+alter table public.policies                    enable row level security;
+alter table public.channel_credentials         enable row level security;
+alter table public.whatsapp_templates          enable row level security;
 alter table public.bots                        enable row level security;
 alter table public.channels                    enable row level security;
 alter table public.channel_connection_requests enable row level security;
@@ -240,6 +366,29 @@ create policy business_profiles_select on public.business_profiles for select to
   using (private.is_workspace_member(workspace_id));
 create policy business_profiles_write on public.business_profiles for all to authenticated
   using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+create policy working_hours_select on public.working_hours for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy working_hours_write on public.working_hours for all to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+create policy working_hours_overrides_select on public.working_hours_overrides for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy working_hours_overrides_write on public.working_hours_overrides for all to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+create policy policies_select on public.policies for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+create policy policies_write on public.policies for all to authenticated
+  using (private.can_write(workspace_id)) with check (private.can_write(workspace_id));
+
+-- channel_credentials: service role only — RLS on, NO policies, no privileges (§6, §7).
+revoke all on public.channel_credentials from anon, authenticated;
+
+-- WhatsApp templates: members read; synced/written by the backend only.
+create policy whatsapp_templates_select on public.whatsapp_templates for select to authenticated
+  using (private.is_workspace_member(workspace_id));
+revoke insert, update, delete on public.whatsapp_templates from anon, authenticated;
 
 -- Bots: owner/admin manage directly; `max_bots` and the capability switches are enforced by
 -- triggers in 0010 regardless of the call path. status / readiness_score / public_key are
