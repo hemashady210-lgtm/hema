@@ -63,13 +63,12 @@ Supabase project was created and no migration was applied to one.
 
 ### Tooling session (2026-11-26) — no product code
 
-- `docs/MASTER_PROMPT.md` replaced with the owner's full-build master prompt + addendum
-  (the Phase 01 prompt it replaced is in git history, commit `55528fd`). The text as supplied
-  ends mid-sentence in §12.10 ("manual paym") — sections after 12.10 (incl. §13 AI
-  Playground, referenced by §12.9) are **missing; owner to supply**.
-- **Conflict to resolve:** MASTER_PROMPT §0 says "do not ask for approval between phases";
-  `CLAUDE.md` says "do not start the next phase without explicit owner approval". Until the
-  owner says otherwise, `CLAUDE.md` + `DECISIONS.md` win (per CLAUDE.md "source of truth").
+- `docs/MASTER_PROMPT.md` replaced with the owner's full-build master prompt (§0–§25) + addendum
+  (the Phase 01 prompt it replaced is in git history, commit `55528fd`). The first copy was cut
+  off at §12.10. The owner then supplied §12.10–§25 and a revised addendum, which replaced the
+  cut-off tail and the earlier addendum.
+- **Approval rule (owner decision):** CLAUDE.md wins. **Stop after EACH phase for owner
+  approval.** MASTER_PROMPT §0 and §1 were updated to say this.
 - Agent skills in `.claude/skills/`, pinned in `skills-lock.json` (installed via `npx skills`):
   `supabase`, `supabase-postgres-best-practices` (supabase/agent-skills), `frontend-design`,
   `webapp-testing` (anthropics/skills). Vendored dirs are excluded from Prettier.
@@ -79,6 +78,27 @@ Supabase project was created and no migration was applied to one.
   edited JS/TS file + `typecheck` of its workspace package; blocks (exit 2) on errors. Verified
   manually: clean file → pass; injected type + lint errors → both reported, exit 2.
 - Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
+
+### Next session: reconcile Phase 01 work with the new master prompt
+
+Owner instruction: **reconcile, do not rebuild from zero.** The Phase 01 migrations and docs
+(on base branch `claude/ai-crm-phase-01-foundation-4a8r46`) predate the full-build prompt.
+Differences spotted so far. This list is incomplete, and each item needs a decision: keep
+the repo's version (and record it in DECISIONS.md) or change the code to match the prompt.
+
+- Table names: the repo has `contacts`, `channel_connections`, `knowledge_sources` and `plans`;
+  the prompt uses `customers`, `channels`, `kb_sources` and `subscription_plans`.
+- Enums: the repo's `channel_status` includes `in_progress`, `disconnected` and `rejected`, but
+  not `disabled`. The repo's `subscription_status` includes `pending_activation`, but not the
+  prompt's `grace` state.
+- Doc file names: the repo has `API_SPEC.md`, `TESTING_STRATEGY.md`, `RISK_REGISTER.md` and
+  `CHANNELS.md`; the prompt uses `API.md`, `TESTING.md`, `RISKS.md` and `INTEGRATIONS.md`.
+  `SECURITY.md` and `DEPLOYMENT.md` do not exist yet.
+- `packages/channel-adapters/` (prompt §4) does not exist.
+- Phase numbering: the prompt's §22 has P1–P17, which differs from `docs/ROADMAP.md`. The
+  dialect eval gate was recorded under "Phase 04" above; the addendum puts it in P6.
+- Prompt §14 billing terms (prices, limits, trial, grace) must be checked against the seed
+  migration `…001200` and `BILLING.md`.
 
 ### Next: Phase 02 — Platform core (not started)
 
