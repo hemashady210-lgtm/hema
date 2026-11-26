@@ -44,5 +44,5 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno lint supabase/functions
-      - run: deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts
-      - run: deno test --config supabase/functions/api/deno.json --allow-env --permit-no-files supabase/functions
+      - run: deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts supabase/functions/api/app_test.ts supabase/functions/_shared/shared_test.ts
+      - run: deno test --config supabase/functions/api/deno.json --allow-env supabase/functions/_shared supabase/functions/api

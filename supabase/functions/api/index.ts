@@ -1,10 +1,19 @@
-// `api` Edge Function (E7). Skeleton for the local stack; routes land in P3 M3.
-import { BRAND } from '@ai-crm/shared';
+// Entry point: wires real adapters. Logic lives in app.ts (tested with fakes in app_test.ts).
+import { createApp } from './app.ts';
+import { createAdminClient, supabaseAuth, supabaseDb } from '../_shared/db.ts';
+import { createResendMailer } from '../_shared/email/resend.ts';
+import { loadEnv } from '../_shared/env.ts';
+import { createLogger } from '../_shared/log.ts';
 
-Deno.serve((req) => {
-  const url = new URL(req.url);
-  if (url.pathname.endsWith('/health')) {
-    return Response.json({ ok: true, product: BRAND.productName });
-  }
-  return Response.json({ error: { code: 'not_found', message: 'Not found' } }, { status: 404 });
-});
+const env = loadEnv();
+const admin = createAdminClient(env);
+
+Deno.serve(
+  createApp({
+    env,
+    db: supabaseDb(admin),
+    auth: supabaseAuth(admin),
+    mailer: createResendMailer(env.resend),
+    logger: createLogger({ fn: 'api' }),
+  }),
+);
