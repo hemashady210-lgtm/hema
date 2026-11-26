@@ -21,6 +21,7 @@
 // transaction that is always aborted at the end (fixtures never persist); a test file that
 // contains COMMIT is refused.
 
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -104,16 +105,20 @@ export function splitStatements(sql) {
       buf += sql.slice(i, stop);
       i = stop;
     } else if (ch === "'" || ch === '"') {
+      // E'...' strings allow backslash escapes; standard strings only double the quote.
+      const escapes =
+        ch === "'" && i > 0 && /[eE]/.test(sql[i - 1]) && !/\w/.test(sql[i - 2] ?? '');
       let j = i + 1;
       while (j < sql.length) {
-        if (sql[j] === ch && sql[j + 1] === ch) j += 2;
+        if (escapes && sql[j] === '\\') j += 2;
+        else if (sql[j] === ch && sql[j + 1] === ch) j += 2;
         else if (sql[j] === ch) break;
         else j += 1;
       }
       buf += sql.slice(i, j + 1);
       i = j + 1;
     } else if (ch === '$') {
-      const tag = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+      const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
       if (tag) {
         const end = sql.indexOf(tag[0], i + tag[0].length);
         const stop = end === -1 ? sql.length : end + tag[0].length;
@@ -168,16 +173,28 @@ async function appliedVersions() {
     create table if not exists supabase_migrations.schema_migrations (
       version text primary key, statements text[], name text);`);
   const rows = await query(
-    'select version from supabase_migrations.schema_migrations order by version',
+    'select version, md5(statements[1]) as checksum from supabase_migrations.schema_migrations order by version',
   );
-  return new Set(rows.map((r) => r.version));
+  return new Map(rows.map((r) => [r.version, r.checksum]));
 }
+
+const md5 = (text) => createHash('md5').update(text, 'utf8').digest('hex');
 
 async function migrate({ dryRun }) {
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => /^\d{14}_.+\.sql$/.test(f))
     .sort();
   const applied = await appliedVersions();
+  // Applied migrations are frozen: refuse to continue if one changed on disk.
+  const drifted = files.filter((f) => {
+    const stored = applied.get(f.slice(0, 14));
+    return stored && stored !== md5(readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+  });
+  if (drifted.length) {
+    throw new Error(
+      `applied migrations changed on disk (write a new migration instead): ${drifted.join(', ')}`,
+    );
+  }
   const pending = files.filter((f) => !applied.has(f.slice(0, 14)));
   console.log(`applied: ${applied.size}, pending: ${pending.length}`);
   for (const file of pending) {
@@ -201,11 +218,19 @@ async function migrate({ dryRun }) {
   }
 }
 
+// Statements that would end the test transaction early (and persist fixtures) are refused.
+const ENDS_TRANSACTION =
+  /^(commit|end|abort|prepare\s+transaction|commit\s+prepared|rollback\s+prepared)\b/i;
+
 function instrumentTest(sql, file) {
-  if (/\bcommit\b\s*;/i.test(sql.replace(/--[^\n]*/g, ''))) {
-    throw new Error(`${file}: test files must not COMMIT`);
-  }
   const statements = splitStatements(sql);
+  for (const raw of statements) {
+    if (ENDS_TRANSACTION.test(stripComments(raw))) {
+      throw new Error(
+        `${file}: test files must not end the transaction (${stripComments(raw).slice(0, 40)})`,
+      );
+    }
+  }
   const body = [];
   body.push('begin');
   body.push('create temp table __tap_out (n serial primary key, line text)');
@@ -213,7 +238,9 @@ function instrumentTest(sql, file) {
   body.push('grant all on sequence __tap_out_n_seq to public');
   for (const raw of statements) {
     const stmt = stripComments(raw);
-    if (/^(begin|rollback|start transaction)\b/i.test(stmt)) continue;
+    // The runner owns the transaction: drop the file's own begin / final rollback, but keep
+    // `rollback to savepoint` (it changes what the test means).
+    if (/^(begin|start\s+transaction)\b/i.test(stmt) || /^rollback\s*$/i.test(stmt)) continue;
     if (/^select\b/i.test(stmt)) {
       body.push(
         `insert into pg_temp.__tap_out (line) select t.line::text from (${stmt}) as t(line)`,

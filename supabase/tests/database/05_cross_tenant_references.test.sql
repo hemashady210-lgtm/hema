@@ -96,7 +96,7 @@ select throws_ok($$ insert into public.customer_notes (workspace_id, customer_id
   ('10000000-0000-0000-0000-0000000005aa', '30000000-0000-0000-0000-0000000005bb', '00000000-0000-0000-0000-0000000005a1', 'x') $$,
   '23503', null, 'note cannot attach to another tenant''s customer');
 select throws_ok($$ insert into public.notifications (workspace_id, user_id, type, title) values
-  ('10000000-0000-0000-0000-0000000005aa', '00000000-0000-0000-0000-0000000005b1', 'x.y', '{"en":"x"}') $$,
+  ('10000000-0000-0000-0000-0000000005aa', '00000000-0000-0000-0000-0000000005b1', 'x.y', '{"ar":"س","en":"x"}') $$,
   '23503', null, 'notifications only go to members of the workspace');
 
 -- Hybrid retrieval never crosses tenants.

@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(16);
+select plan(21);
 
 -- 1. RLS is enabled on every table in `public` and on every analytics partition.
 select is_empty(
@@ -96,8 +96,8 @@ select is_empty(
   $$ select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname in ('public', 'private')
        and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
-       and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%') $$,
-  'every public/private function pins search_path');
+       and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c = 'search_path=""') $$,
+  'every public/private function pins an empty search_path');
 select is_empty(
   $$ select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname in ('public', 'private') and p.prokind = 'f'
@@ -118,9 +118,41 @@ select is_empty(
          'private.can_write(uuid,workspace_role[])',
          'private.is_platform_admin()',
          'private.is_i18n_text(jsonb)',
+         'private.is_i18n_text_full(jsonb)',
          'private.try_uuid(text)',
          'private.object_workspace(text)') $$,
   'authenticated can execute only the documented RPC + RLS helpers');
+
+-- 7. workspace_id is immutable on every tenant table (0013).
+select is_empty(
+  $$ select c.relname::text from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     join pg_attribute a on a.attrelid = c.oid and a.attname = 'workspace_id' and a.attnotnull and not a.attisdropped
+     where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relispartition
+       and not exists (select 1 from pg_trigger t join pg_proc f on f.oid = t.tgfoid
+                       where t.tgrelid = c.oid and f.proname = 'prevent_workspace_change') $$,
+  'every tenant table rejects workspace_id changes');
+
+-- 8. Clients hold no TRUNCATE / REFERENCES / TRIGGER on any table.
+select is_empty(
+  $$ select c.relname::text || ':' || r.rolname || ':' || pr.p from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     cross join (values ('anon'), ('authenticated')) as r(rolname)
+     cross join (values ('truncate'), ('references'), ('trigger')) as pr(p)
+     where n.nspname = 'public' and c.relkind in ('r', 'p') and has_table_privilege(r.rolname, c.oid, pr.p) $$,
+  'client roles have no TRUNCATE / REFERENCES / TRIGGER privileges');
+
+-- 9. Storage: private buckets have no client read policies; public bucket takes no SVG.
+select is_empty(
+  $$ select policyname::text from pg_policies
+     where schemaname = 'storage' and tablename = 'objects'
+       and (coalesce(qual, '') ~ '(knowledge-files|attachments|exports)'
+            or coalesce(with_check, '') ~ '(knowledge-files|attachments|exports)') $$,
+  'no client policies on private buckets (downloads via short-lived service-role URLs)');
+select ok(
+  (select not ('image/svg+xml' = any (coalesce(allowed_mime_types, '{}'))) from storage.buckets where id = 'public-assets'),
+  'public-assets does not accept SVG');
+select is(
+  (select count(*)::int from storage.buckets where id in ('knowledge-files', 'attachments', 'exports') and public),
+  0, 'private buckets are not public');
 
 select * from finish();
 rollback;

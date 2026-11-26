@@ -48,7 +48,8 @@ insert into public.profiles (id, full_name) values
   ('00000000-0000-0000-0000-0000000000b1', 'Owner B');
 insert into public.workspaces (id, name, slug) values
   ('10000000-0000-0000-0000-00000000000a', 'A', 'ws-matrix-a'),
-  ('10000000-0000-0000-0000-00000000000b', 'B', 'ws-matrix-b');
+  ('10000000-0000-0000-0000-00000000000b', 'B', 'ws-matrix-b'),
+  ('10000000-0000-0000-0000-00000000000c', 'S', 'ws-matrix-s');
 -- A is Enterprise so no plan gate interferes with the security checks under test.
 insert into public.subscriptions (id, workspace_id, plan_id, status, provider, billing_interval, current_period_start)
   select '3d000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', id, 'active', 'manual', 'month', now()
@@ -56,6 +57,11 @@ insert into public.subscriptions (id, workspace_id, plan_id, status, provider, b
 insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start)
   select '10000000-0000-0000-0000-00000000000b', id, 'active', 'manual', 'month', now()
   from public.plans where code = 'growth';
+-- S: a Starter workspace already at its bot limit (probe for plan-information leaks).
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start)
+  select '10000000-0000-0000-0000-00000000000c', id, 'active', 'manual', 'month', now()
+  from public.plans where code = 'starter';
+insert into public.bots (workspace_id, name) values ('10000000-0000-0000-0000-00000000000c', 'S bot');
 insert into public.workspace_members (workspace_id, user_id, role) values
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'owner'),
   ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a2', 'admin'),
@@ -179,7 +185,7 @@ insert into public.api_keys (workspace_id, name, key_prefix, key_hash) values
 insert into public.data_requests (workspace_id, kind, requested_by) values
   ('10000000-0000-0000-0000-00000000000a', 'export', '00000000-0000-0000-0000-0000000000a1');
 insert into public.notifications (workspace_id, user_id, type, title) values
-  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'handoff.requested', '{"en":"Handoff"}');
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'handoff.requested', '{"ar":"تحويل","en":"Handoff"}');
 insert into public.feature_flags (key, scope, workspace_id, enabled) values
   ('meta_embedded_signup', 'workspace', '10000000-0000-0000-0000-00000000000a', true);
 
@@ -209,7 +215,7 @@ insert into m (t, key, upd, ins, s, i, u, d) values
   ('working_hours',                   'workspace_id', 'weekday',       null, 'oagv', 'oa', 'oa', 'oa'),
   ('working_hours_overrides',         'workspace_id', 'date',          null, 'oagv', 'oa', 'oa', 'oa'),
   ('policies',                        'workspace_id', 'sort_order',    null, 'oagv', 'oa', 'oa', 'oa'),
-  ('bots',                            'workspace_id', 'name',          null, 'oagv', 'oa', 'oa', 'oa'),
+  ('bots',                            'workspace_id', 'name',          null, 'oagv', 'oa', 'oa', ''),
   ('bot_configs',                     'workspace_id', 'workspace_id',  null, 'oagv', 'oa', '', ''),
   ('channels',                        'workspace_id', 'workspace_id',  null, 'oagv', '', '', ''),
   ('channel_credentials',             'workspace_id', 'workspace_id',  null, '', '', '', ''),
@@ -310,7 +316,7 @@ begin
   end loop;
 end $$;
 
-select plan((select count(*)::int * 4 from m) + 7);
+select plan((select count(*)::int * 4 from m) + 24);
 
 -- Coverage: every table with a workspace_id column (plus workspaces) is in the matrix.
 select is_empty(
@@ -346,6 +352,59 @@ from (
   offset 0
 ) e;
 
+-- Another tenant's limits never leak: security checks run before plan checks (0013).
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
+select is(test_helpers.attempt($$ insert into public.bots (workspace_id, name) values ('10000000-0000-0000-0000-00000000000c', 'x') $$),
+  'error:42501', 'outsider at another tenant''s bot limit gets 42501, not plan_limit');
+select is(test_helpers.attempt($$ insert into public.bots (workspace_id, name, handoff_enabled) values ('10000000-0000-0000-0000-00000000000c', 'x', true) $$),
+  'error:42501', 'outsider probing a feature gets 42501, not plan_feature');
+select is(test_helpers.attempt($$ insert into public.branches (workspace_id, name) values ('10000000-0000-0000-0000-00000000000c', '{"en":"x"}') $$),
+  'error:42501', 'outsider probing branches gets 42501');
+reset role;
+
+-- Platform tables: no client writes at all.
+create temp table pm (t text primary key, c text not null) on commit drop;
+grant select on pm to public;
+insert into pm values ('platform_admins', 'role'), ('plans', 'sort_order'), ('plan_prices', 'amount_cents'),
+  ('plan_entitlements', 'value'), ('entitlement_definitions', 'description'), ('one_time_products', 'amount_cents'),
+  ('provider_price_refs', 'external_id'), ('ai_model_profiles', 'effort'), ('ai_model_prices', 'source_note'),
+  ('platform_settings', 'description');
+create temp table pr (t text, who text, op text, outcome text);
+grant insert, select on pr to public;
+do $$
+declare
+  w record;
+  q record;
+begin
+  for w in select * from (values ('o', 'authenticated', '00000000-0000-0000-0000-0000000000a1'), ('n', 'anon', null)) as t(who, role_name, uid) loop
+    perform set_config('request.jwt.claims',
+      case when w.uid is null then '{"role":"anon"}' else json_build_object('sub', w.uid, 'role', 'authenticated')::text end, true);
+    execute format('set local role %I', w.role_name);
+    for q in select * from pg_temp.pm loop
+      insert into pg_temp.pr values
+        (q.t, w.who, 'i', test_helpers.attempt(format('insert into public.%I default values', q.t))),
+        (q.t, w.who, 'u', test_helpers.attempt(format('update public.%I set %I = %I', q.t, q.c, q.c))),
+        (q.t, w.who, 'd', test_helpers.attempt(format('delete from public.%I', q.t)));
+    end loop;
+    reset role;
+  end loop;
+end $$;
+select is(
+  coalesce((select string_agg(r.who || r.op || '=' || r.outcome, ', ') from pg_temp.pr r
+            where r.t = p.t and not (r.outcome = 'error:42501' or r.outcome = 'rows:0')), ''),
+  '', p.t || ': no client insert / update / delete')
+from (select t from pm order by t offset 0) p;
+
+-- File knowledge sources are removed through `api` only (storage cleanup).
+insert into public.kb_sources (id, workspace_id, type, title) values
+  ('33000000-0000-0000-0000-00000000002a', '10000000-0000-0000-0000-00000000000a', 'file', 'Menu PDF');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+select is(test_helpers.attempt($$ delete from public.kb_sources where id = '33000000-0000-0000-0000-00000000002a' $$),
+  'rows:0', 'owner cannot delete a file source directly');
+reset role;
+
 -- profiles: you see yourself and teammates; you edit only yourself.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
@@ -367,6 +426,29 @@ select is(test_helpers.attempt($$ insert into public.faqs (workspace_id, source_
   'error:42501', 'read-only workspace: owner cannot add FAQs');
 select is((select count(*)::int from public.bots), 1, 'read-only workspace: data stays readable');
 reset role;
+
+-- Hard delete of a fully populated workspace (C10): every tenant table had a row above.
+create function test_helpers.rows_for_workspace(p_ws uuid) returns bigint
+language plpgsql set search_path = '' as $$
+declare
+  r record;
+  n bigint;
+  total bigint := 0;
+begin
+  for r in select c.relname from pg_class c join pg_namespace s on s.oid = c.relnamespace
+           join pg_attribute a on a.attrelid = c.oid and a.attname = 'workspace_id'
+           where s.nspname = 'public' and c.relkind in ('r', 'p') loop
+    execute format('select count(*) from public.%I where workspace_id = $1', r.relname) into n using p_ws;
+    total := total + n;
+  end loop;
+  return total;
+end $$;
+select cmp_ok(test_helpers.rows_for_workspace('10000000-0000-0000-0000-00000000000a'), '>', 60::bigint,
+  'fixture workspace has rows across the tenant tables');
+select lives_ok($$ delete from public.workspaces where id = '10000000-0000-0000-0000-00000000000a' $$,
+  'a fully populated workspace can be hard-deleted');
+select is(test_helpers.rows_for_workspace('10000000-0000-0000-0000-00000000000a'), 0::bigint,
+  'no tenant row survives the deletion');
 
 select * from finish();
 rollback;

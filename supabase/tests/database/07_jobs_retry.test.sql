@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(16);
+select plan(20);
 
 create temp table j (k text primary key, id bigint) on commit drop;
 insert into j values ('a', public.enqueue_job('ai_reply', '{"message_id":"m1"}', null, 'ai', now(), 'job-test-a'));
@@ -53,6 +53,22 @@ insert into j values ('c', public.enqueue_job('ai_reply', '{}', null, 'ai', now(
 select count(*) from public.claim_jobs('ai', 'w3', 5);
 update public.jobs set lock_expires_at = now() - interval '1 second' where id = (select id from j where k = 'c');
 select is(public.requeue_stuck_jobs(), 1, 'requeue_stuck_jobs re-queues an expired lock');
+
+-- A worker can only finish the job it holds (0013).
+select count(*) from public.claim_jobs('ai', 'w4', 5);
+select ok(not public.complete_job((select id from j where k = 'c'), 'someone-else'), 'another worker cannot complete the job');
+select ok(public.complete_job((select id from j where k = 'c'), 'w4'), 'the holding worker completes it');
+
+-- A stuck job on its last attempt is dead with a finish time; the note is added once.
+insert into j values ('d', public.enqueue_job('ai_reply', '{}', null, 'ai', now(), 'job-test-d'));
+update public.jobs set max_attempts = 1 where id = (select id from j where k = 'd');
+select count(*) from public.claim_jobs('ai', 'w5', 5);
+update public.jobs set lock_expires_at = now() - interval '1 second' where id = (select id from j where k = 'd');
+select public.requeue_stuck_jobs();
+select ok((select status = 'dead' and finished_at is not null from public.jobs where id = (select id from j where k = 'd')),
+  'expired lock on the last attempt → dead with finished_at');
+select is((select last_error from public.jobs where id = (select id from j where k = 'd')), '[lock expired]',
+  'the lock-expired note is recorded once');
 
 -- Queue RPCs are service-role only.
 set local role authenticated;

@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(41);
+select plan(55);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000008a1', 'o8@test.local'),
@@ -76,7 +76,8 @@ select ok(private.feature_enabled('meta_embedded_signup', '10000000-0000-0000-00
 select ok(not private.feature_enabled('meta_embedded_signup', '10000000-0000-0000-0000-0000000008bb'), 'other workspaces keep the global value');
 select ok(not private.feature_enabled('no_such_flag'), 'unknown flags are off');
 
--- Analytics partitions
+-- Analytics partitions (create the current window first: the scheduler does this from P10)
+select private.ensure_analytics_partitions(3);
 insert into public.analytics_events (id, workspace_id, event_type) values
   ('40000000-0000-0000-0000-0000000008a1', '10000000-0000-0000-0000-0000000008aa', 'message.inbound');
 select is((select tableoid::regclass::text from public.analytics_events where id = '40000000-0000-0000-0000-0000000008a1'),
@@ -160,6 +161,63 @@ select throws_ok($$ insert into public.kb_documents (workspace_id, source_id, bo
   ('10000000-0000-0000-0000-0000000008aa', '33000000-0000-0000-0000-0000000008a1', 'note') $$,
   '42501', null, 'manual notes only go into manual sources');
 reset role;
+
+-- Review fixes (0013)
+select throws_ok($$ update public.customers set workspace_id = '10000000-0000-0000-0000-0000000008cc'
+  where id = '30000000-0000-0000-0000-0000000008aa' $$, '42501', null, 'rows cannot move to another workspace');
+select throws_ok($$ insert into public.catalog_categories (workspace_id, name) values ('10000000-0000-0000-0000-0000000008aa', '{}') $$,
+  '23514', null, 'localized text needs at least one non-empty language');
+select throws_ok($$ insert into public.notifications (workspace_id, user_id, type, title)
+  values ('10000000-0000-0000-0000-0000000008aa', '00000000-0000-0000-0000-0000000008a1', 'x.y', '{"en":"Only English"}') $$,
+  '23514', null, 'notifications carry both languages');
+select throws_ok($$ insert into public.catalog_items (workspace_id, name, price_cents, currency)
+  values ('10000000-0000-0000-0000-0000000008aa', '{"en":"x"}', 100, 'sar') $$, '23514', null, 'currency is an ISO 4217 code');
+select throws_ok($$ update public.bots set avatar_path = '10000000-0000-0000-0000-0000000008cc/a.png'
+  where id = '20000000-0000-0000-0000-0000000008aa' $$, '23514', null, 'asset paths stay inside the workspace prefix');
+select throws_ok($$ insert into public.kb_chunks (workspace_id, bot_id, source_id, source_type, chunk_index, content)
+  values ('10000000-0000-0000-0000-0000000008aa', '20000000-0000-0000-0000-0000000008cc', '33000000-0000-0000-0000-0000000008a1', 'faq', 0, 'x') $$,
+  '23503', null, 'chunks cannot reference another tenant''s bot');
+select throws_ok($$ delete from public.bot_configs where bot_id = '20000000-0000-0000-0000-0000000008aa' $$,
+  '42501', null, 'bot config versions cannot be deleted');
+
+-- Human takeover is the human_handoff feature.
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-0000000008dd', 'S8', 'ws-beh-s');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start)
+  select '10000000-0000-0000-0000-0000000008dd', id, 'active', 'manual', 'month', now() from public.plans where code = 'starter';
+insert into public.bots (id, workspace_id, name) values ('20000000-0000-0000-0000-0000000008dd', '10000000-0000-0000-0000-0000000008dd', 'S');
+insert into public.channels (id, workspace_id, bot_id, channel_type, status, connection_mode) values
+  ('22000000-0000-0000-0000-0000000008d1', '10000000-0000-0000-0000-0000000008dd', '20000000-0000-0000-0000-0000000008dd', 'widget', 'connected', 'automatic');
+insert into public.customers (id, workspace_id) values ('30000000-0000-0000-0000-0000000008dd', '10000000-0000-0000-0000-0000000008dd');
+insert into public.conversations (id, workspace_id, bot_id, channel_id, customer_id) values
+  ('31000000-0000-0000-0000-0000000008dd', '10000000-0000-0000-0000-0000000008dd', '20000000-0000-0000-0000-0000000008dd',
+   '22000000-0000-0000-0000-0000000008d1', '30000000-0000-0000-0000-0000000008dd');
+select throws_like($$ update public.conversations set handler = 'human' where id = '31000000-0000-0000-0000-0000000008dd' $$,
+  'plan_feature:human_handoff', 'Starter: taking a conversation over needs human_handoff');
+
+-- Manual Meta connect on Starter (1 Meta channel): request → channel pending → connected.
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000008d1', 'sd@test.local');
+select lives_ok($$ insert into public.channel_connection_requests (id, workspace_id, bot_id, channel_type, requested_by, contact_name, contact_email, business_name)
+  values ('23000000-0000-0000-0000-0000000008dd', '10000000-0000-0000-0000-0000000008dd', '20000000-0000-0000-0000-0000000008dd', 'whatsapp',
+          '00000000-0000-0000-0000-0000000008d1', 'n', 'n@test.local', 'biz') $$, 'Starter files its one WhatsApp request');
+select lives_ok($$ insert into public.channels (id, workspace_id, bot_id, channel_type, status, connection_mode, external_account_id)
+  values ('22000000-0000-0000-0000-0000000008d2', '10000000-0000-0000-0000-0000000008dd', '20000000-0000-0000-0000-0000000008dd',
+          'whatsapp', 'pending', 'manual', 'PHONE-S') $$, 'admin creates the channel that fulfils the request');
+select lives_ok($$ update public.channel_connection_requests set channel_id = '22000000-0000-0000-0000-0000000008d2', status = 'completed'
+  where id = '23000000-0000-0000-0000-0000000008dd' $$, 'request linked and completed');
+select lives_ok($$ update public.channels set status = 'connected', health_status = 'passing', last_health_check_at = now()
+  where id = '22000000-0000-0000-0000-0000000008d2' $$, 'channel connected after a passing health check');
+select throws_like($$ insert into public.channel_connection_requests (workspace_id, bot_id, channel_type, requested_by, contact_name, contact_email, business_name)
+  values ('10000000-0000-0000-0000-0000000008dd', '20000000-0000-0000-0000-0000000008dd', 'instagram',
+          '00000000-0000-0000-0000-0000000008d1', 'n', 'n@test.local', 'biz') $$,
+  'plan_limit:max_meta_channels:%', 'the next Meta channel is over the Starter limit');
+
+-- Deleting a workspace with structured knowledge (re-index triggers) works.
+insert into public.business_profiles (workspace_id, display_name) values ('10000000-0000-0000-0000-0000000008dd', '{"en":"S"}');
+insert into public.working_hours (workspace_id, weekday, open_time, close_time) values ('10000000-0000-0000-0000-0000000008dd', 1, '09:00', '17:00');
+insert into public.policies (workspace_id, type, content) values ('10000000-0000-0000-0000-0000000008dd', 'refund', '{"en":"No"}');
+insert into public.catalog_items (workspace_id, name, price_cents) values ('10000000-0000-0000-0000-0000000008dd', '{"en":"Tea"}', 300);
+select lives_ok($$ delete from public.workspaces where id = '10000000-0000-0000-0000-0000000008dd' $$,
+  'a workspace with profile, hours, policies and catalog can be deleted');
 
 select * from finish();
 rollback;

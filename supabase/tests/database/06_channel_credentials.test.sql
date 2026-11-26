@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000006a1', 'a6@test.local');
 insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-0000000006aa', 'A6', 'ws-cred-a');
@@ -75,6 +75,15 @@ select is((select count(*)::int from vault.secrets v join s on s.id = v.id where
 delete from public.channel_credentials where channel_id = '22000000-0000-0000-0000-0000000006a2';
 select is((select count(*)::int from vault.secrets v join s on s.id = v.id where s.k = 'fb2'), 0,
   'deleting the credential row deletes its Vault secret');
+-- Disconnecting a channel removes its credential and Vault secret (0013).
+insert into s values ('fb3', vault.create_secret('fb-token-3'));
+insert into public.channel_credentials (workspace_id, channel_id, vault_secret_id)
+  select '10000000-0000-0000-0000-0000000006aa', '22000000-0000-0000-0000-0000000006a2', id from s where k = 'fb3';
+update public.channels set status = 'not_connected' where id = '22000000-0000-0000-0000-0000000006a2';
+select is((select count(*)::int from public.channel_credentials where channel_id = '22000000-0000-0000-0000-0000000006a2'), 0,
+  'disconnecting a channel deletes its credential row');
+select is((select count(*)::int from vault.secrets v join s on s.id = v.id where s.k = 'fb3'), 0,
+  'disconnecting a channel deletes its Vault secret');
 delete from public.channels where id = '22000000-0000-0000-0000-0000000006a1';
 select is((select count(*)::int from public.channel_credentials), 0, 'deleting a channel deletes its credential row');
 select is((select count(*)::int from vault.secrets v join s on s.id = v.id where s.k = 'wa'), 0,

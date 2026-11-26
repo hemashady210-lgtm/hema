@@ -4,18 +4,28 @@
 -- Reference data (plans, entitlements, model profiles, feature flags) is seeded by
 -- migrations. Fixed ids use the `d…` prefix so they never collide with pgTAP fixtures.
 --
--- Demo users have no auth.identities row, so they cannot sign in yet: sign-in for seeded
--- users is set up in P3 together with auth (GoTrue identity schema = needs verification).
+-- Demo users have no auth.identities row and a random password nobody knows, so they cannot
+-- sign in: sign-in for seeded users is set up in P3 with auth (GoTrue identity schema = needs
+-- verification).
 -- =============================================================================
+
+-- Guard: only seed a fresh local database (never a project that already has users).
+do $$
+begin
+  if exists (select 1 from auth.users) then
+    raise exception 'seed.sql only runs on an empty local database (auth.users is not empty)';
+  end if;
+end
+$$;
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
                         raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
   ('d0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-   'owner@demo.local', extensions.crypt('demo-password', extensions.gen_salt('bf')), now(),
+   'owner@demo.local', extensions.crypt(encode(extensions.gen_random_bytes(24), 'hex'), extensions.gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{"full_name":"Demo Owner"}', now(), now()),
   ('d0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-   'agent@demo.local', extensions.crypt('demo-password', extensions.gen_salt('bf')), now(),
+   'agent@demo.local', extensions.crypt(encode(extensions.gen_random_bytes(24), 'hex'), extensions.gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{"full_name":"Demo Agent"}', now(), now());
 
 insert into public.profiles (id, full_name, locale) values
