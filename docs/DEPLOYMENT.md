@@ -1,7 +1,7 @@
 # Deployment & Environments
 
-Status: **P2** — the database side is live on the Supabase dev project; application deployment
-(Cloudflare Pages, widget CDN, Edge Functions, production project) is P17. MASTER_PROMPT §21.
+Status: **P3** — the database and the `api` Edge Function are live on the Supabase dev project;
+application deployment (Cloudflare Pages, widget CDN, production project) is P17. MASTER_PROMPT §21.
 
 ## 1. Environments
 
@@ -67,12 +67,24 @@ Without Docker / the CLI: `pnpm db:test:local` runs the migrations, seed and sui
 Postgres with pgvector + pgTAP and stub Supabase schemas (`scripts/db/local-stub.sql`). It is a
 fast approximation only; CI and the dev project are authoritative.
 
+**Full app locally (P3).** `supabase start` runs Auth (email confirmations on, local mail catcher
+on http://127.0.0.1:54324), PostgREST and the edge runtime serving `api` at
+`http://127.0.0.1:54321/functions/v1/api`. `supabase status -o env` prints the local, well-known
+publishable/secret keys. Dashboard: copy the values into `apps/dashboard/.env.local`
+(`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` = publishable key, `VITE_API_BASE_URL`), then
+`pnpm dev:dashboard` (http://127.0.0.1:5173). Behind a TLS-intercepting proxy the edge-runtime
+container cannot download npm modules; run `pnpm dev:api` (host Deno, http://127.0.0.1:54399/api)
+and point `VITE_API_BASE_URL` at it. E2E: `pnpm --filter @ai-crm/dashboard exec playwright test
+--project=journey` with `E2E_SUPABASE_SECRET_KEY` (local secret key) set.
+
 ## 5. CI (`.github/workflows/ci.yml`)
 
-| Job      | Steps                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `checks` | `pnpm install --frozen-lockfile`, lint, format check, typecheck, test                                                     |
-| `db`     | `supabase/setup-cli` (CLI **2.122.1**, pinned), `supabase db start`, `supabase test db`, `supabase db lint --level error` |
+| Job         | Steps                                                                                                                                  |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks`    | `pnpm install --frozen-lockfile`, lint (incl. `local/logical-css`), format check, typecheck, Vitest                                    |
+| `db`        | `supabase/setup-cli` (CLI **2.122.1**, pinned), `supabase db start`, `supabase test db`, `supabase db lint --level error`              |
+| `functions` | Deno: `deno lint`, `deno check`, unit tests for `_shared` + `api` (P3)                                                                 |
+| `e2e`       | local stack (`supabase start`, edge runtime + mail), `api` integration test, dashboard build, Playwright journey ar + en with axe (P3) |
 
 CI never connects to the dev project (no token in CI). Deploy jobs (staging on merge to `main`,
 production on tag) are P17.
@@ -91,6 +103,21 @@ production on tag) are P17.
   name and verify when wiring P3). Local redirect URI: `http://127.0.0.1:54321/auth/v1/callback`.
 - `SUPABASE_ACCESS_TOKEN` is a developer/ops credential for the Management API runner; it is not
   an application variable and must never reach Edge Functions or the browser.
+- **Edge Functions (P3).** Deploy: `supabase functions deploy api --project-ref <ref> --use-api`
+  (server-side bundling includes `packages/shared`; R-14 verified). `api` runs with
+  `verify_jwt = false` (`config.toml`) and authenticates every non-public route itself. Secrets:
+  `APP_URL` (required for invitation links on hosted projects), optional `ALLOWED_ORIGINS`,
+  `RESEND_API_KEY` + `RESEND_FROM_EMAIL`. Inside functions the new-style `SUPABASE_SECRET_KEYS` /
+  `SUPABASE_PUBLISHABLE_KEYS` are used first (F5); the CLI's local runtime (2.122.1) only injects
+  the legacy keys, which are the fallback.
+- **Dev project state (2026-11-26):** `api` deployed (health + auth errors verified); no Edge
+  Function secrets set, so invitation creation there returns `500 app_url_not_configured` until
+  `APP_URL` is set (the dashboard is not hosted until P17).
+- **Hosted Auth settings to mirror `config.toml` (owner action, before staging use):** site URL
+  and redirect URLs of the hosted dashboard, email confirmations on, minimum password length 8
+  with letters + digits, custom SMTP through Resend (the built-in Supabase SMTP only sends to the
+  project's team and is rate-limited), Google provider only when a client exists
+  (`VITE_AUTH_GOOGLE_ENABLED=true` in the dashboard build).
 
 ## 7. Production checklist (P17, not started)
 
