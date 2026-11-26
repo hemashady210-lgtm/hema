@@ -28,19 +28,25 @@ flowchart TD
   C -- allowed --> D[load context: bot, business profile, entitlements,\nlast N messages + rolling summary]
   D --> E[language & dialect detection - heuristic first]
   E --> G[retrieval: embed query → match_knowledge_chunks hybrid RRF]
-  G --> H[prompt assembly: cached prefix + retrieved context + history]
+  G --> RT[routing pre-pass on Haiku: category, complexity,\nanswerable confidence - also feeds analytics]
+  RT --> RS{complaint or complex_multi_step\nor confidence below min?}
+  RS -- no --> H[prompt assembly: cached prefix + retrieved context + history\nmodel = profile.generation_model]
+  RS -- yes --> HS[same prompt, model = profile.escalation_model\nescalated = true + reason]
+  HS --> I
   H --> I[Claude messages.create with tools]
   I --> J{stop_reason}
   J -- tool_use --> K[validate + execute tool server-side\nworkspace_id injected by server] --> I
   J -- end_turn --> L[output guardrails: language, length, no unverified prices/links]
+  L -- guardrail fails on non-escalated draft --> HS
   J -- refusal / error --> R[release_ai_reply → fallback / retry policy]
   L --> M[persist outbound message + ai_runs billed=true]
   M --> N[deliver via channel adapter → Realtime ping]
-  N --> O[async: classification job Growth+, summary refresh if long]
+  N --> O[async: store classification Growth+ from routing pre-pass, summary refresh if long]
 ```
 
 The tool loop is capped at **4 model turns** per reply; exceeding it ends the turn with a
-handoff/fallback answer. A reply is billed once regardless of internal turns.
+handoff/fallback answer. A reply is billed once regardless of internal turns, routing pre-pass
+or escalation.
 
 ## 3. Interfaces (contract for Phase 04)
 
@@ -100,24 +106,51 @@ The Anthropic implementation uses the official `@anthropic-ai/sdk` (via `npm:` s
 Deno — compatibility **needs verification**), never raw fetch, and the SDK's typed errors for
 retry decisions (429/5xx/connection retryable; 400/404 not).
 
-## 4. Model selection (P9 — owner decision)
+## 4. Model routing (decision A15 — approved 2026-11-26)
 
-Data-driven via `ai_model_profiles` (seeded) and the plan entitlement `ai_model_profile`.
+Data-driven via `ai_model_profiles` (seeded) and the plan entitlement `ai_model_profile`
+(default `standard` for **every** plan). Internal per-model prices live in `ai_model_prices`.
 
-| Profile              | Generation model    | Classifier         | Effort |
-| -------------------- | ------------------- | ------------------ | ------ |
-| `standard` (default) | `claude-opus-5-5`   | `claude-haiku-5-5` | `low`  |
-| `balanced`           | `claude-sonnet-5-5` | `claude-haiku-5-5` | `low`  |
-| `economy`            | `claude-haiku-5-5`  | `claude-haiku-5-5` | `low`  |
+| Profile    | Who                                                              | Replies            | Routing / classification | Escalation                            | Refusal fallback                                             |
+| ---------- | ---------------------------------------------------------------- | ------------------ | ------------------------ | ------------------------------------- | ------------------------------------------------------------ |
+| `standard` | all plans (Trial, Starter, Growth, Enterprise default)           | `claude-haiku-5-5` | `claude-haiku-5-5`       | `claude-sonnet-5-5` on triggers below | none on Haiku (not offered); `default` on Sonnet escalations |
+| `premium`  | Enterprise only, by contract (`workspace_entitlement_overrides`) | `claude-opus-5-5`  | `claude-haiku-5-5`       | —                                     | `default`                                                    |
+
+**Escalation triggers** (`escalation_config.triggers`, thresholds tuned in Phase 04):
+
+| Trigger              | Detected by                                                                                                                                                                                                                                    | When                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `complaint`          | routing pre-pass category = complaint (or negative sentiment + complaint intent)                                                                                                                                                               | before generation          |
+| `complex_multi_step` | routing pre-pass complexity flag: several questions/constraints in one message, multi-item orders with options, reservation + order combined, policy edge cases                                                                                | before generation          |
+| `low_confidence`     | (a) pre-pass `answerable_confidence` < `min_confidence` (0.6), (b) weak retrieval (top similarity below threshold), or (c) Haiku draft fails an output guardrail (unsupported price/hour/policy claim, wrong language) → regenerated on Sonnet | before or after generation |
+
+Model self-reported confidence is treated as a weak signal; retrieval scores and guardrail
+results carry more weight. Thresholds and their measured precision are recorded in the eval
+report.
+
+**Routing pre-pass:** one Haiku call with structured output (`output_config.format`) returning
+`{category, intent, sentiment, language, dialect, complexity, answerable_confidence}`. It
+decides the model _and_ provides question classification for analytics (Growth+
+`message_classifications`), so classification costs nothing extra.
+
+**Logging:** every `ai_runs` row stores `initial_model`, `model` (final), `escalated`,
+`escalation_reason`, `routing_confidence`. Escalation rate = escalated runs / all runs per
+workspace and period (index `ai_runs_escalated_idx`); the admin health view alerts when a
+workspace or the platform exceeds `max_escalation_rate_alert` (30 %).
+
+**Switching models:** if Haiku fails the Arabic dialect gate (§10), update
+`ai_model_profiles.generation_model` for `standard` (e.g. to `claude-sonnet-5-5`) — a data
+change, no deploy. The same applies to any per-workspace override.
 
 Request-shape rules for the current models (from the API reference):
 
-- **Thinking cannot be disabled** on Opus 5.5 (adaptive thinking is always on); depth is
-  controlled only by `output_config.effort`. Opus 5.5's default effort is `medium`, so we set
-  `low` explicitly for chat replies. (Sonnet 5.5's default is `high`; set explicitly too.)
+- Effort is always set explicitly (`low` for chat replies and the routing pre-pass): Haiku 5.5
+  and Opus 5.5 default to `medium`, Sonnet 5.5 to `high`. Thinking cannot be disabled on
+  Opus 5.5 (adaptive is always on); depth is controlled by `output_config.effort`.
 - **No `temperature`/`top_p`/`top_k`** — non-default values are rejected on current models.
 - **Forced `tool_choice` (`any`/`tool`) returns 400** on Opus 5.5 / Sonnet 5.5 → we use
-  `tool_choice: auto` + `strict: true` tool schemas + prompt instructions.
+  `tool_choice: auto` + `strict: true` tool schemas + prompt instructions on every model, so
+  one request shape works across the routing.
 - **No assistant prefill** — output shape is controlled by instructions and, for the classifier,
   structured outputs (`output_config.format`).
 - Thinking blocks returned by the API are passed back unchanged within a tool loop.
@@ -127,10 +160,12 @@ Request-shape rules for the current models (from the API reference):
 - Always check `stop_reason` before reading content. `refusal` (HTTP 200) → no reply text is
   used; we log `stop_details.category`, `release_ai_reply()`, and send the bot fallback / offer
   handoff.
-- Server-side fallbacks: requests on Opus 5.5 / Sonnet 5.5 include the documented
-  `fallbacks: "default"` option (beta header `server-side-fallback-2026-07-01`) so a refusal can
-  be retried on a fallback model server-side; `served_model` is recorded in `ai_runs`. This is
-  controlled per profile by `refusal_fallback`. Billing semantics of fallbacks — **needs verification**.
+- Server-side fallbacks: requests on Opus 5.5 / Sonnet 5.5 (premium replies and escalations)
+  include the documented `fallbacks: "default"` option (beta header
+  `server-side-fallback-2026-07-01`); `served_model` is recorded in `ai_runs`. **Haiku 5.5 has no
+  server-side refusal fallback**, so a Haiku refusal ends in the bot fallback / handoff offer; in
+  v1 we do not automatically resend refused content to another model. Billing semantics of
+  fallbacks — **needs verification**.
 - 429/5xx/timeouts: SDK retries (default 2) → job-level retry with backoff → after the last
   attempt: fallback message. Generation timeout 30 s per call (widget UX), total job budget 60 s.
 
@@ -192,24 +227,37 @@ input. Tools are included only if the bot + entitlements enable them.
 External order/reservation sync (`OrderSyncAdapter`) hooks into the `confirmed` transition
 later; `orders.external_*` columns already exist.
 
-## 9. Cost model (estimates — for the P9 decision)
+## 9. Cost model with routing (estimates)
 
-Assumptions per reply: ~3,000 cached prefix tokens, ~2,300 uncached input (retrieval + history +
-message), ~400 output tokens incl. low-effort thinking. Prices = Anthropic list prices per 1M
-tokens (input / output / cache read) as cached on 2026-11-03; cache-write premiums and
-embeddings excluded. **Estimates only — to be replaced by measured `ai_runs` costs in Phase 04.**
+Assumptions per reply: ~3,000 prefix tokens, ~2,300 other input (retrieval + history + message),
+~400 output tokens incl. low-effort thinking. Routing pre-pass: ~800 input + ~150 output on Haiku.
+Prices = Anthropic list prices per 1M tokens as cached on 2026-11-03 (input · output · cache
+read): Haiku 5.5 0.10 · 0.50 · — (prompts ≤ 100K tokens; Haiku charged at full input rate here),
+Sonnet 5.5 2 · 10 · 0.10, Opus 5.5 4 · 20 · 0.20. Cache-write premiums, embeddings and infra are
+excluded. **Estimates only — replaced by measured `ai_runs.cost_micros` in Phase 04.**
 
-| Model               | $/M in · out · cache-read | ≈ $/reply | ≈ $/1,000 replies | Starter (1k) cost vs $39 | Growth (5k) cost vs $99 | Overage cost vs $10/1k |
-| ------------------- | ------------------------- | --------- | ----------------- | ------------------------ | ----------------------- | ---------------------- |
-| `claude-opus-5-5`   | 4 · 20 · 0.20             | ~$0.018   | ~$18              | ~46 % of revenue         | **~90 %** of revenue    | **below cost**         |
-| `claude-sonnet-5-5` | 2 · 10 · 0.10             | ~$0.009   | ~$9               | ~23 %                    | ~45 %                   | ~90 %                  |
-| `claude-haiku-5-5`  | 0.10 · 0.50 · —           | ~$0.0007  | ~$0.7             | ~2 %                     | ~4 %                    | ~7 %                   |
+| Component                                               | ≈ $ per reply |
+| ------------------------------------------------------- | ------------- |
+| Routing pre-pass (Haiku)                                | $0.00015      |
+| Reply on Haiku                                          | $0.0007       |
+| Reply on Sonnet                                         | $0.0089       |
+| Reply on Opus (premium)                                 | $0.0178       |
+| Low-confidence regenerate (wasted Haiku draft + Sonnet) | $0.0096       |
 
-**Decision needed (owner):** with Opus 5.5 as the default, Growth and overage pricing is not
-sustainable at full utilization. Options: (a) keep Opus 5.5 at `low` effort and re-price
-Growth/overage; (b) choose a different profile per plan (e.g. Growth on `balanced`); (c) route
-by difficulty. Quality must be measured on the Arabic eval set (§10) before deciding; the
-schema already supports any of these without code changes.
+Blended `standard` cost per 1,000 replies by escalation rate (split ⅔ before generation, ⅓
+after a failed Haiku draft):
+
+| Escalation rate          | ≈ $ / 1k replies | Trial (100) | Starter 1k vs $39 | Growth 5k vs $99 | Overage 1k vs $10 | Enterprise default 20k vs $299 |
+| ------------------------ | ---------------- | ----------- | ----------------- | ---------------- | ----------------- | ------------------------------ |
+| 0 %                      | $0.85            | $0.09       | $0.85 (2 %)       | $4.3 (4 %)       | 9 %               | $17 (6 %)                      |
+| **15 % (planning case)** | **$2.1**         | $0.21       | **$2.1 (5 %)**    | **$10.6 (11 %)** | **21 %**          | $42 (14 %)                     |
+| 30 % (alert threshold)   | $3.4             | $0.34       | $3.4 (9 %)        | $16.9 (17 %)     | 34 %              | $68 (23 %)                     |
+| 100 % (all escalated)    | $9.3             | $0.93       | $9.3 (24 %)       | $46 (47 %)       | 93 %              | $186 (62 %)                    |
+
+`premium` (Opus 5.5, Enterprise by contract) ≈ **$18 / 1k replies**: 20k replies ≈ $360/month,
+above the $299 entry price, so premium contracts must be priced per reply (cost + margin) or
+as a surcharge. Current public prices are kept as approved; routing keeps every public plan's
+AI cost ≤ ~17 % of revenue up to the 30 % escalation alert.
 
 ## 10. Quality & evaluation
 
@@ -219,6 +267,13 @@ schema already supports any of these without code changes.
 - Automatic checks: language match, facts-from-KB (grounding), no price not present in tool
   results, tool-call correctness, length per channel; LLM-judge rubric for tone/helpfulness with
   a human-reviewed calibration subset.
+- **Arabic dialect gate (decision A15):** a dedicated set of ≥ 150 conversations — Gulf,
+  Egyptian and MSA (≥ 50 each), mixed with English product names and Arabizi — scored with the
+  routing exactly as in production (Haiku default + Sonnet escalation). Haiku must meet the
+  gates in `TESTING_STRATEGY.md §5` **per dialect**; if it fails any dialect, the `standard`
+  profile's `generation_model` is switched in the DB and the eval re-run.
+- Routing quality: precision/recall of each escalation trigger on labeled complaint /
+  complex / unanswerable cases; target escalation rate 10–20 %.
 - Gates: any prompt/model/profile change must not regress grounding or language-match on the
   golden set. Production sampling: 1 % of replies queued for review in the admin panel.
 - Retrieval eval: recall@8 on dialect-paraphrased questions — decides the Voyage model (P10).

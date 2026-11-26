@@ -17,9 +17,9 @@
 ## 2. Phase 01 status
 
 - `supabase/tests/database/01_rls_tenant_isolation.test.sql` — 14 assertions.
-- `supabase/tests/database/02_plan_limits_metering.test.sql` — 13 assertions.
+- `supabase/tests/database/02_plan_limits_metering.test.sql` — 18 assertions (incl. model routing profiles).
 - Validated on a throwaway local Postgres 16 + pgvector with stub `auth`/`storage` schemas:
-  **27/27 passed**. Must be re-run against the real Supabase local stack in Phase 02.
+  **32/32 passed**. Must be re-run against the real Supabase local stack in Phase 02.
 
 ## 3. Mandatory test rules
 
@@ -43,14 +43,19 @@
 
 ## 5. AI evaluation gates (from Phase 04)
 
-| Metric                                                        | Gate   |
-| ------------------------------------------------------------- | ------ |
-| Reply language matches customer language                      | ≥ 98 % |
-| Grounded in provided knowledge (judge + rules)                | ≥ 95 % |
-| Invented prices / hours / policies                            | 0      |
-| Correct tool call when expected (orders/reservations/handoff) | ≥ 95 % |
-| Unnecessary handoff                                           | ≤ 5 %  |
-| p95 latency (widget, end-to-end)                              | ≤ 6 s  |
+| Metric                                                        | Gate    |
+| ------------------------------------------------------------- | ------- |
+| Reply language matches customer language                      | ≥ 98 %  |
+| Grounded in provided knowledge (judge + rules)                | ≥ 95 %  |
+| Invented prices / hours / policies                            | 0       |
+| Correct tool call when expected (orders/reservations/handoff) | ≥ 95 %  |
+| Unnecessary handoff                                           | ≤ 5 %   |
+| p95 latency (widget, end-to-end)                              | ≤ 6 s   |
+| Escalation rate (Haiku → Sonnet) on the golden set            | 10–20 % |
+
+The language-match, grounding and invented-facts gates apply **per dialect** (Gulf, Egyptian,
+MSA) on the Arabic dialect eval set, run with production routing (decision A15). A failure in
+any dialect switches the `standard` profile's `generation_model` in the DB and the eval is re-run.
 
 ## 6. Test data
 

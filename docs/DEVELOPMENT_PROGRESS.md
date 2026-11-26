@@ -1,8 +1,8 @@
 # Development Progress
 
-## Current phase: 01 — Architecture & Foundation · **Complete, awaiting owner approval**
+## Current phase: 01 — Architecture & Foundation · **Complete, decisions applied, awaiting go for Phase 02**
 
-Last updated: 2026-11-25
+Last updated: 2026-11-26
 
 ### Delivered in Phase 01
 
@@ -13,7 +13,7 @@ Last updated: 2026-11-25
 | Architecture                                | `docs/ARCHITECTURE.md`                                                                                                                                  |
 | DB schema, Mermaid ERD, RLS matrix          | `docs/DATABASE.md`                                                                                                                                      |
 | SQL migrations (12 files, **not applied**)  | `supabase/migrations/`                                                                                                                                  |
-| pgTAP tests (27 assertions)                 | `supabase/tests/database/`                                                                                                                              |
+| pgTAP tests (32 assertions)                 | `supabase/tests/database/`                                                                                                                              |
 | API spec                                    | `docs/API_SPEC.md`                                                                                                                                      |
 | AI engine design (+ cost model)             | `docs/AI_ENGINE.md`                                                                                                                                     |
 | Billing design                              | `docs/BILLING.md`                                                                                                                                       |
@@ -30,8 +30,9 @@ Last updated: 2026-11-25
   set CI runs; `pnpm test` has no tests yet.
 - Migrations: applied in order to a **throwaway local Postgres 16 + pgvector** with stub
   `auth`/`storage` schemas (scratch environment, since deleted). All 12 applied cleanly.
-- pgTAP: **27/27 passed** (tenant isolation, column grants, service-role-only RPCs, plan limits,
-  feature gates, trial quota hard stop, 80 %/100 % alerts, idempotent metering, release).
+- pgTAP: **32/32 passed** (tenant isolation, column grants, service-role-only RPCs, plan limits,
+  feature gates, trial quota hard stop, 80 %/100 % alerts, idempotent metering, release, model
+  routing profiles and Enterprise premium override). Re-run after the routing changes.
 - Additional smoke checks: monthly usage-period anchoring, queue dedupe/claim/backoff, hybrid
   retrieval ranking with Arabic and English chunks, per-workspace order numbers.
 - Tailwind v4 compile of the token CSS: utilities resolve to variables and the Arabic overrides cascade.
@@ -44,14 +45,21 @@ Last updated: 2026-11-25
 No feature code, no UI pages, no auth implementation, no Edge Function code, no deployment. No
 Supabase project was created and no migration was applied to one.
 
-### Owner decisions required before Phase 02
+### Owner decisions recorded (2026-11-26)
 
-1. Approve or adjust proposals **P1–P15** in `docs/DECISIONS.md`.
-2. **P9 / RISK R-01: AI cost vs pricing.** The estimated Opus 5.5 cost is ≈ 90 % of Growth
-   revenue at full use, and overage would be sold below cost. Choose a direction: re-price,
-   use a model profile per plan, or decide after the Phase 04 measurements.
-3. Confirm the trial entitlements (P12) and the Meta channel counts per plan (P13).
-4. Product name (placeholder "AI CRM" in `packages/shared/src/brand.ts`).
+1. **Model routing (A15):** Haiku 5.5 is the default for all plans (replies + classification);
+   it escalates to Sonnet 5.5 only for complaints, low-confidence answers or complex
+   multi-step questions, and the escalation rate is logged in `ai_runs`. Opus 5.5 is
+   Enterprise-only, by contract. An Arabic dialect eval gate (Gulf, Egyptian, MSA) is added
+   to Phase 04. Public prices are unchanged.
+   - Applied in migrations `…000700` (escalation fields, `ai_model_prices`) and `…001200`
+     (`standard` / `premium` profiles).
+   - Cost per plan recomputed in `AI_ENGINE.md §9`: ≈ $2.1 / 1k replies at 15 % escalation.
+2. Proposals **P1–P15 approved** as proposed (P9 superseded by A15).
+3. Placeholder product name "AI CRM" kept.
+4. The PR is watched for review comments and CI.
+
+**Waiting for the owner's go-ahead before starting Phase 02.**
 
 ### Next: Phase 02 — Platform core (not started)
 

@@ -108,16 +108,30 @@ insert into public.one_time_products (code, name, amount_cents, currency, refund
   ('meta_channel_connection', '{"ar":"رسوم ربط قناة ميتا","en":"Meta channel connection fee"}', 4900, 'USD', true)
 on conflict (code) do nothing;
 
--- Model profiles (proposal P9 — owner to confirm). Prices = Anthropic list prices per
--- 1M tokens as cached on 2026-11-03 (needs verification at go-live).
+-- Model routing (decision A15). Prices below = Anthropic list prices per 1M tokens as cached
+-- on 2026-11-03 (needs verification at go-live).
+--   standard: Haiku 5.5 for replies + classification; escalates to Sonnet 5.5 on complaints,
+--             low-confidence answers or complex multi-step questions. Default for ALL plans.
+--   premium:  Opus 5.5, Enterprise only, assigned per contract via an entitlement override.
+-- If Haiku fails the Phase 04 Arabic dialect eval, update the `standard` row (no code change).
 insert into public.ai_model_profiles
-  (code, provider, generation_model, classifier_model, effort, max_output_tokens,
-   input_cost_micros_per_mtok, output_cost_micros_per_mtok, cache_read_cost_micros_per_mtok)
+  (code, provider, generation_model, classifier_model, escalation_model, escalation_config,
+   effort, max_output_tokens, refusal_fallback)
 values
-  ('standard', 'anthropic', 'claude-opus-5-5',   'claude-haiku-5-5', 'low', 1024, 4000000, 20000000, 200000),
-  ('balanced', 'anthropic', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'low', 1024, 2000000, 10000000, 100000),
-  ('economy',  'anthropic', 'claude-haiku-5-5',  'claude-haiku-5-5', 'low', 1024,  100000,   500000, null)
+  ('standard', 'anthropic', 'claude-haiku-5-5', 'claude-haiku-5-5', 'claude-sonnet-5-5',
+   '{"triggers":["complaint","low_confidence","complex_multi_step"],"min_confidence":0.6,"max_escalation_rate_alert":0.30}',
+   'low', 1024, 'none'),   -- Haiku 5.5: no server-side refusal fallback (escalation calls use 'default')
+  ('premium', 'anthropic', 'claude-opus-5-5', 'claude-haiku-5-5', null, '{}',
+   'low', 1024, 'default')
 on conflict (code) do nothing;
+
+insert into public.ai_model_prices
+  (model, input_cost_micros_per_mtok, output_cost_micros_per_mtok, cache_read_cost_micros_per_mtok, source_note)
+values
+  ('claude-haiku-5-5',    100000,   500000,   null, 'list price cached 2026-11-03; prompts <=100K tokens'),
+  ('claude-sonnet-5-5',  2000000, 10000000, 100000, 'list price cached 2026-11-03'),
+  ('claude-opus-5-5',    4000000, 20000000, 200000, 'list price cached 2026-11-03')
+on conflict (model) do nothing;
 
 insert into public.platform_settings (key, value, description) values
   ('admin_notification_emails', '[]', 'Recipients for channel requests and manual payment requests'),

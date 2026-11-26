@@ -251,7 +251,9 @@ can bypass them (P4). Payment providers sit behind a `PaymentProvider` interface
 `packages/ai-engine` exposes `GenerationProvider` (Claude) and `EmbeddingProvider` (Voyage)
 interfaces, a retrieval module (hybrid pgvector + FTS with reciprocal-rank fusion), a prompt
 builder with prompt-caching layout, a strict tool registry (orders, reservations, handoff,
-catalog lookup) and guardrails. Details: [`AI_ENGINE.md`](./AI_ENGINE.md).
+catalog lookup) and guardrails. Model routing (A15): Haiku 5.5 by default, escalating to
+Sonnet 5.5 for complaints, low-confidence or complex multi-step questions; Opus 5.5 for
+Enterprise contracts only. All of it is data in `ai_model_profiles`. Details: [`AI_ENGINE.md`](./AI_ENGINE.md).
 
 ## 11. Frontend architecture
 

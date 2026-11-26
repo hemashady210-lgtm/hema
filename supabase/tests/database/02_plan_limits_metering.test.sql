@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(13);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -67,6 +67,31 @@ select ok(not public.release_ai_reply('reply:7'), 'double release is a no-op');
 select is(
   (select ai_replies_used from public.usage_periods where workspace_id = '10000000-0000-0000-0000-00000000000b'),
   99, 'usage counter reflects the release');
+
+-- Model routing (decision A15)
+select is(
+  (select count(*)::int from public.plans p
+   where exists (select 1 from public.plan_entitlements pe where pe.plan_id = p.id and pe.key = 'ai_model_profile')),
+  0, 'no plan overrides ai_model_profile (all plans use the default)');
+select is(
+  private.get_entitlement('10000000-0000-0000-0000-00000000000a', 'ai_model_profile') #>> '{}',
+  'standard', 'Starter resolves to the standard profile');
+select results_eq(
+  $$ select generation_model, classifier_model, escalation_model from public.ai_model_profiles where code = 'standard' $$::text,
+  $$ values ('claude-haiku-5-5'::text, 'claude-haiku-5-5'::text, 'claude-sonnet-5-5'::text) $$::text,
+  'standard = Haiku replies + classification, Sonnet escalation');
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-00000000000e', 'Ent WS', 'ws-ent');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start)
+  select '10000000-0000-0000-0000-00000000000e', id, 'active', 'manual', 'month', now() from public.plans where code = 'enterprise';
+insert into public.workspace_entitlement_overrides (workspace_id, key, value, reason)
+  values ('10000000-0000-0000-0000-00000000000e', 'ai_model_profile', '"premium"', 'contract');
+select is(
+  private.get_entitlement('10000000-0000-0000-0000-00000000000e', 'ai_model_profile') #>> '{}',
+  'premium', 'Enterprise contract override assigns the premium profile');
+select throws_ok(
+  $$ insert into public.ai_runs (workspace_id, provider, model, escalated, escalation_reason)
+     values ('10000000-0000-0000-0000-00000000000e', 'anthropic', 'm', true, 'bored') $$,
+  '23514', null, 'escalation_reason is constrained');
 
 select * from finish();
 rollback;

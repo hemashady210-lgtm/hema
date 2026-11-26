@@ -30,9 +30,11 @@ One-time product: `meta_channel_connection` — **$49 per channel**, refundable 
 Effective entitlement = `workspace_entitlement_overrides` (Enterprise custom / admin
 adjustments, optional expiry) → `plan_entitlements` → `entitlement_definitions.default_value`.
 
-> Margin note: with the default model profile (Opus 5.5), Growth and overage are close to or
-> below AI cost at full utilization — see [`AI_ENGINE.md §9`](./AI_ENGINE.md#9-cost-model-estimates--for-the-p9-decision).
-> Owner decision P9 is required before Phase 05.
+> AI cost (decision A15): every plan runs on the `standard` profile — Haiku 5.5 with Sonnet 5.5
+> escalation. Estimated AI cost at a 15 % escalation rate ≈ $2.1 / 1,000 replies: Starter ≈ 5 %
+> and Growth ≈ 11 % of revenue, overage ≈ 21 % of its $10 price; still ≤ ~17 % of plan revenue at
+> the 30 % escalation alert. Opus 5.5 (`premium`, ≈ $18 / 1k) is Enterprise-only and must be
+> priced in the contract. See [`AI_ENGINE.md §9`](./AI_ENGINE.md#9-cost-model-with-routing-estimates).
 
 ## 3. Provider abstraction
 

@@ -5,7 +5,7 @@ Source of truth: [`supabase/migrations/`](../supabase/migrations). Tests:
 [`supabase/tests/database/`](../supabase/tests/database).
 
 > **Validation status (Phase 01):** all 12 migrations were applied to a _throwaway local
-> Postgres 16 + pgvector_ cluster with stub `auth`/`storage` schemas, and the 27 pgTAP checks
+> Postgres 16 + pgvector_ cluster with stub `auth`/`storage` schemas, and the 32 pgTAP checks
 > passed. They have **not** been applied to any Supabase project. Supabase-managed pieces
 > (real `auth.uid()`, Storage, Vault, default grants) still need verification with
 > `supabase db reset` in Phase 02.
@@ -20,12 +20,12 @@ Source of truth: [`supabase/migrations/`](../supabase/migrations). Tests:
 | `…000400_contacts_conversations_messages` | contacts, contact_identities, conversations, messages, message_attachments, handoffs                                                                                                                                                                                                        |
 | `…000500_knowledge_catalog`               | knowledge_sources, knowledge_qa, knowledge_chunks (vector 1024 + tsvector + HNSW), catalog_categories, catalog_items                                                                                                                                                                        |
 | `…000600_orders_reservations`             | orders, order_items, reservations                                                                                                                                                                                                                                                           |
-| `…000700_ai_runs_analytics`               | ai_model_profiles, ai_runs, message_classifications                                                                                                                                                                                                                                         |
+| `…000700_ai_runs_analytics`               | ai_model_profiles (routing: generation / classifier / escalation model), ai_model_prices, ai_runs (incl. escalation fields), message_classifications                                                                                                                                        |
 | `…000800_billing_plans_usage`             | entitlement_definitions, plans, plan_prices, one_time_products, provider_price_refs, plan_entitlements, workspace_entitlement_overrides, subscriptions, billing_customers, billing_transactions, manual_payment_requests, payment_webhook_events, usage_periods, usage_events, usage_alerts |
 | `…000900_jobs_events_audit`               | jobs, platform_events, audit_logs (append-only), internal_notes, api_keys, data_requests, platform_settings                                                                                                                                                                                 |
 | `…001000_functions_triggers`              | entitlement resolution, limit triggers, usage periods, `consume_ai_reply` / `release_ai_reply`, queue RPCs, `match_knowledge_chunks`, order numbers, inbound counters, re-index triggers, grant lockdown                                                                                    |
 | `…001100_storage`                         | buckets `knowledge-files`, `attachments`, `exports`, `public-assets` + read policies                                                                                                                                                                                                        |
-| `…001200_seed_plans`                      | entitlement keys, Trial/Starter/Growth/Enterprise, monthly + annual prices, $49 connection fee, model profiles, platform settings                                                                                                                                                           |
+| `…001200_seed_plans`                      | entitlement keys, Trial/Starter/Growth/Enterprise, monthly + annual prices, $49 connection fee, model profiles (`standard` Haiku → Sonnet escalation, `premium` Opus) + model prices, platform settings                                                                                     |
 
 ## 2. Conventions
 
@@ -228,6 +228,16 @@ erDiagram
     int overage_replies
     int inbound_messages
   }
+  AI_RUNS {
+    uuid id PK
+    uuid workspace_id FK
+    text initial_model
+    text model
+    bool escalated
+    text escalation_reason
+    real routing_confidence
+    bigint cost_micros
+  }
   JOBS {
     bigint id PK
     text queue
@@ -245,34 +255,34 @@ erDiagram
 `—` = no client access (service role / Edge Functions only). Roles: O=owner, A=admin,
 G=agent, V=viewer.
 
-| Table                                                                                                                                  | O                                     | A      | G      | V      | Notes                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ | ------ | ------ | -------------------------------------------- |
-| profiles                                                                                                                               | R self+team, U self                   | same   | same   | same   |                                              |
-| platform_admins                                                                                                                        | R self                                | R self | R self | R self | lets UI know if user is admin                |
-| workspaces                                                                                                                             | R, U(name, locale, tz, country, logo) | same   | R      | R      | status/retention never client-writable       |
-| workspace_members                                                                                                                      | R                                     | R      | R      | R      | changes via `api` (owner rules, `max_users`) |
-| workspace_invitations                                                                                                                  | R                                     | R      | —      | —      | created via `api`                            |
-| branches, business_profiles, bots                                                                                                      | R W                                   | R W    | R      | R      | limits/features enforced by triggers         |
-| channel_connections                                                                                                                    | R                                     | R      | R      | R      | real statuses only (A14)                     |
-| channel_connection_requests                                                                                                            | R                                     | R      | R      | R      | created via `api` (notifications + fee)      |
-| channel_connection_events                                                                                                              | R (non-internal)                      | same   | same   | same   |                                              |
-| widget_configs                                                                                                                         | R, U(appearance)                      | same   | R      | R      | key/origins via `api`                        |
-| contacts                                                                                                                               | R, U(CRM fields)                      | same   | same   | R      |                                              |
-| conversations                                                                                                                          | R, U(assigned_to, ai_paused)          | same   | same   | R      |                                              |
-| messages, attachments, handoffs                                                                                                        | R                                     | R      | R      | R      | writes via functions                         |
-| knowledge_sources                                                                                                                      | R W (qa/business_info/catalog)        | same   | R      | R      | files via `api` upload flow                  |
-| knowledge_qa, catalog_*                                                                                                                | R W                                   | R W    | R      | R      | changes enqueue re-embedding                 |
-| knowledge_chunks                                                                                                                       | —                                     | —      | —      | —      | internal                                     |
-| orders, reservations                                                                                                                   | R, U(status…)                         | same   | same   | R      | created by AI worker / `api`                 |
-| ai_runs                                                                                                                                | R                                     | R      | —      | —      | transparency on tokens/latency               |
-| message_classifications                                                                                                                | R                                     | R      | R      | R      | Growth+                                      |
-| plans, plan_prices, plan_entitlements, one_time_products, entitlement_definitions                                                      | R (also `anon`)                       |        |        |        | public pricing                               |
-| subscriptions, usage_periods, usage_alerts, overrides                                                                                  | R                                     | R      | R      | R      |                                              |
-| billing_transactions, manual_payment_requests                                                                                          | R                                     | R      | —      | —      |                                              |
-| billing_customers, data_requests                                                                                                       | R                                     | —      | —      | —      |                                              |
-| api_keys                                                                                                                               | R (no hash column)                    | R      | —      | —      |                                              |
-| audit_logs                                                                                                                             | R (excl. platform-admin actions)      | R      | —      | —      |                                              |
-| ai_model_profiles, provider_price_refs, payment_webhook_events, usage_events, jobs, platform_events, internal_notes, platform_settings | —                                     | —      | —      | —      | internal                                     |
+| Table                                                                                                                                                   | O                                     | A      | G      | V      | Notes                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ | ------ | ------ | -------------------------------------------- |
+| profiles                                                                                                                                                | R self+team, U self                   | same   | same   | same   |                                              |
+| platform_admins                                                                                                                                         | R self                                | R self | R self | R self | lets UI know if user is admin                |
+| workspaces                                                                                                                                              | R, U(name, locale, tz, country, logo) | same   | R      | R      | status/retention never client-writable       |
+| workspace_members                                                                                                                                       | R                                     | R      | R      | R      | changes via `api` (owner rules, `max_users`) |
+| workspace_invitations                                                                                                                                   | R                                     | R      | —      | —      | created via `api`                            |
+| branches, business_profiles, bots                                                                                                                       | R W                                   | R W    | R      | R      | limits/features enforced by triggers         |
+| channel_connections                                                                                                                                     | R                                     | R      | R      | R      | real statuses only (A14)                     |
+| channel_connection_requests                                                                                                                             | R                                     | R      | R      | R      | created via `api` (notifications + fee)      |
+| channel_connection_events                                                                                                                               | R (non-internal)                      | same   | same   | same   |                                              |
+| widget_configs                                                                                                                                          | R, U(appearance)                      | same   | R      | R      | key/origins via `api`                        |
+| contacts                                                                                                                                                | R, U(CRM fields)                      | same   | same   | R      |                                              |
+| conversations                                                                                                                                           | R, U(assigned_to, ai_paused)          | same   | same   | R      |                                              |
+| messages, attachments, handoffs                                                                                                                         | R                                     | R      | R      | R      | writes via functions                         |
+| knowledge_sources                                                                                                                                       | R W (qa/business_info/catalog)        | same   | R      | R      | files via `api` upload flow                  |
+| knowledge_qa, catalog_*                                                                                                                                 | R W                                   | R W    | R      | R      | changes enqueue re-embedding                 |
+| knowledge_chunks                                                                                                                                        | —                                     | —      | —      | —      | internal                                     |
+| orders, reservations                                                                                                                                    | R, U(status…)                         | same   | same   | R      | created by AI worker / `api`                 |
+| ai_runs                                                                                                                                                 | R                                     | R      | —      | —      | transparency on tokens/latency               |
+| message_classifications                                                                                                                                 | R                                     | R      | R      | R      | Growth+                                      |
+| plans, plan_prices, plan_entitlements, one_time_products, entitlement_definitions                                                                       | R (also `anon`)                       |        |        |        | public pricing                               |
+| subscriptions, usage_periods, usage_alerts, overrides                                                                                                   | R                                     | R      | R      | R      |                                              |
+| billing_transactions, manual_payment_requests                                                                                                           | R                                     | R      | —      | —      |                                              |
+| billing_customers, data_requests                                                                                                                        | R                                     | —      | —      | —      |                                              |
+| api_keys                                                                                                                                                | R (no hash column)                    | R      | —      | —      |                                              |
+| audit_logs                                                                                                                                              | R (excl. platform-admin actions)      | R      | —      | —      |                                              |
+| ai_model_profiles, ai_model_prices, provider_price_refs, payment_webhook_events, usage_events, jobs, platform_events, internal_notes, platform_settings | —                                     | —      | —      | —      | internal                                     |
 
 Write paths for read-only workspaces: `private.can_write()` also requires
 `workspaces.status = 'active'`, which is how "trial ended → dashboard read-only" (C7) is
