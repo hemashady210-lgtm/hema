@@ -3,7 +3,8 @@
 ## Current phase: P2 Database & security · **complete — awaiting owner review**. P3 not started (needs a plan + owner approval)
 
 Last updated: 2026-11-26 (P2 session). Phases follow the 17-phase plan in `ROADMAP.md` (E3).
-Branch `claude/phase-p2-database-security-sgovxe`, draft PR #2 → `main`.
+Branch `claude/phase-p2-database-security-sgovxe`. PR #2 (P2) merged into `main` on 2026-11-26;
+PR #3 carries the owner-decision follow-up (F1, F3).
 
 ## P2 summary (latest verified working state)
 
@@ -18,16 +19,16 @@ Branch `claude/phase-p2-database-security-sgovxe`, draft PR #2 → `main`.
 
 ### Done
 
-| Milestone | What                                                                                                                                                                                                                        | Commit                   |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| M1        | Doc renames (E11): `API.md`, `INTEGRATIONS.md`, `TESTING.md`, `RISKS.md` + all references                                                                                                                                   | `5e0fc2d`                |
-| M2        | `supabase/config.toml`, Management-API runner `scripts/db/supabase-remote.mjs` (status / migrate / test / types), local harness, CI job `db`                                                                                | `e9b7bce`                |
-| M3        | 12 migrations rewritten in place with the approved E9 rename list + E4/E5/E10 statuses, security fixes, composite FKs                                                                                                       | `03fb786`                |
-| M4        | All missing tables (gap list), `channel_credentials` (service role only, Vault), `retry_job()`, versioned `bot_configs`, partitioned analytics, feature flags; pgTAP suites 03–08                                           | `c669606`                |
-| M5        | Applied to the dev project; full pgTAP there; `packages/shared/src/database.types.ts`; `supabase/seed.sql` (local/CI only)                                                                                                  | `1687bee`                |
-| M6        | Docs synced with §E (ARCHITECTURE, DATABASE + ERD + RLS matrix, API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING, RISKS, DESIGN_SYSTEM); new `SECURITY.md`, `DEPLOYMENT.md`                                                   | `2caa991`                |
-| M7        | code-reviewer + security-reviewer subagents; all verified findings fixed in forward migration `…20261126000100_p2_review_fixes` + regression tests; runner + seed hardening; docs                                           | `ddf848a`, `75c3484`     |
-| F1 + F3   | Owner decisions (DECISIONS §F): soft delete with retained, detached billing records (5-year configurable retention) + content row limits as entitlements — migration `…20261126000200_retention_and_content_limits` + tests | `6dde9fb` + final commit |
+| Milestone | What                                                                                                                                                                                                                        | Commit                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| M1        | Doc renames (E11): `API.md`, `INTEGRATIONS.md`, `TESTING.md`, `RISKS.md` + all references                                                                                                                                   | `5e0fc2d`                                                   |
+| M2        | `supabase/config.toml`, Management-API runner `scripts/db/supabase-remote.mjs` (status / migrate / test / types), local harness, CI job `db`                                                                                | `e9b7bce`                                                   |
+| M3        | 12 migrations rewritten in place with the approved E9 rename list + E4/E5/E10 statuses, security fixes, composite FKs                                                                                                       | `03fb786`                                                   |
+| M4        | All missing tables (gap list), `channel_credentials` (service role only, Vault), `retry_job()`, versioned `bot_configs`, partitioned analytics, feature flags; pgTAP suites 03–08                                           | `c669606`                                                   |
+| M5        | Applied to the dev project; full pgTAP there; `packages/shared/src/database.types.ts`; `supabase/seed.sql` (local/CI only)                                                                                                  | `1687bee`                                                   |
+| M6        | Docs synced with §E (ARCHITECTURE, DATABASE + ERD + RLS matrix, API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING, RISKS, DESIGN_SYSTEM); new `SECURITY.md`, `DEPLOYMENT.md`                                                   | `2caa991`                                                   |
+| M7        | code-reviewer + security-reviewer subagents; all verified findings fixed in forward migration `…20261126000100_p2_review_fixes` + regression tests; runner + seed hardening; docs                                           | `ddf848a`, `75c3484`                                        |
+| F1 + F3   | Owner decisions (DECISIONS §F): soft delete with retained, detached billing records (5-year configurable retention) + content row limits as entitlements — migration `…20261126000200_retention_and_content_limits` + tests | PR #3 (`6dde9fb`, `2075f77`, merge of `main`, final commit) |
 
 Review results: security review — no critical/high; 5 medium, 4 low, hardening items → all fixed.
 Code review — 12 important + nits → fixed; the two open decisions were taken by the owner (F1,
@@ -42,6 +43,9 @@ F2) and F1/F3 are implemented. Details: `SECURITY.md §7`, `DECISIONS.md §F`.
   other tenant table purged, Vault token removed, final purge after retention (suite 04).
 - Content limits per plan (F3): seeded values, 30/50/5 trial limits hit at the right row, file
   size limit, manual notes not counted, override raises the limit (suite 02).
+- Migration 0014 on the dev project: retention setting 1825 days and every content limit present;
+  `soft_delete_workspace` / `purge_deleted_workspaces` refused to `anon` through the REST API
+  (`42501`); project left with no test data.
 - Catalog-wide conventions incl. service-only tables, `anon` scope, function grants, empty
   `search_path`, immutable `workspace_id`, storage policies (suite 03).
 - Cross-tenant references blocked by composite FKs; retrieval scoped per workspace (suite 05).
@@ -87,7 +91,7 @@ Frankfurt in P17 · F5 new-style Supabase keys from P3.
 2. For P3 (F5): put the **new-style keys** in the environment (`sb_publishable_…` for the
    browser-safe key, `sb_secret_…` for the server key).
 3. Set `main` as the GitHub default branch (Settings → General), if not done yet.
-4. Review and merge PR #2 (marked ready for review once CI is green).
+4. Review and merge PR #3 (F1 + F3 follow-up; PR #2 is already merged).
 
 ### Next: P3 Auth, workspaces, app shell, i18n, tokens (not started)
 
