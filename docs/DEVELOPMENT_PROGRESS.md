@@ -66,9 +66,11 @@ Supabase project was created and no migration was applied to one.
 - `docs/MASTER_PROMPT.md` replaced with the owner's full-build master prompt (§0–§25) + addendum
   (the Phase 01 prompt it replaced is in git history, commit `55528fd`). The first copy was cut
   off at §12.10. The owner then supplied §12.10–§25 and a revised addendum, which replaced the
-  cut-off tail and the earlier addendum.
-- **Approval rule (owner decision):** CLAUDE.md wins. **Stop after EACH phase for owner
-  approval.** MASTER_PROMPT §0 and §1 were updated to say this.
+  cut-off tail and the earlier addendum. The owner later sent a condensed final §12.10–§25, which
+  is the version now in the file.
+- **Approval rule (owner decision):** CLAUDE.md wins. **One phase per session; plan first and
+  wait for owner approval; never start the next phase without explicit approval.**
+  MASTER_PROMPT §0 and §1 say this.
 - Agent skills in `.claude/skills/`, pinned in `skills-lock.json` (installed via `npx skills`):
   `supabase`, `supabase-postgres-best-practices` (supabase/agent-skills), `frontend-design`,
   `webapp-testing` (anthropics/skills). Vendored dirs are excluded from Prettier.
@@ -81,24 +83,14 @@ Supabase project was created and no migration was applied to one.
 
 ### Next session: reconcile Phase 01 work with the new master prompt
 
-Owner instruction: **reconcile, do not rebuild from zero.** The Phase 01 migrations and docs
-(on base branch `claude/ai-crm-phase-01-foundation-4a8r46`) predate the full-build prompt.
-Differences spotted so far. This list is incomplete, and each item needs a decision: keep
-the repo's version (and record it in DECISIONS.md) or change the code to match the prompt.
+Owner instruction: **reconcile, do not rebuild from zero.** The full comparison is in
+[`GAP_ANALYSIS.md`](./GAP_ANALYSIS.md): 11 conflicts needing an owner decision (queue choice,
+Meta OAuth/Embedded Signup timing, P1–P17 phase plan, naming, states, tools, function
+topology), the missing pieces grouped by phase, and what already matches. Nothing has been
+fixed yet. Start the next session by getting decisions on §1 of that file.
 
-- Table names: the repo has `contacts`, `channel_connections`, `knowledge_sources` and `plans`;
-  the prompt uses `customers`, `channels`, `kb_sources` and `subscription_plans`.
-- Enums: the repo's `channel_status` includes `in_progress`, `disconnected` and `rejected`, but
-  not `disabled`. The repo's `subscription_status` includes `pending_activation`, but not the
-  prompt's `grace` state.
-- Doc file names: the repo has `API_SPEC.md`, `TESTING_STRATEGY.md`, `RISK_REGISTER.md` and
-  `CHANNELS.md`; the prompt uses `API.md`, `TESTING.md`, `RISKS.md` and `INTEGRATIONS.md`.
-  `SECURITY.md` and `DEPLOYMENT.md` do not exist yet.
-- `packages/channel-adapters/` (prompt §4) does not exist.
-- Phase numbering: the prompt's §22 has P1–P17, which differs from `docs/ROADMAP.md`. The
-  dialect eval gate was recorded under "Phase 04" above; the addendum puts it in P6.
-- Prompt §14 billing terms (prices, limits, trial, grace) must be checked against the seed
-  migration `…001200` and `BILLING.md`.
+Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `main`.
+Setting `main` as the GitHub default branch is an owner action (repo Settings → General).
 
 ### Next: Phase 02 — Platform core (not started)
 
