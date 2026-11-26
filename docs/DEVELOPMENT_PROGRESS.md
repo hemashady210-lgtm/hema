@@ -2,13 +2,13 @@
 
 ## Current phase: 01 — Architecture & Foundation · **Complete, decisions applied, awaiting go for Phase 02**
 
-Last updated: 2026-11-26
+Last updated: 2026-11-26 (tooling session)
 
 ### Delivered in Phase 01
 
 | Deliverable                                 | Location                                                                                                                                                |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Master prompt (verbatim)                    | `docs/MASTER_PROMPT.md`                                                                                                                                 |
+| Master prompt (full build, replaced 11-26)  | `docs/MASTER_PROMPT.md`                                                                                                                                 |
 | Decisions log (approved + proposals P1–P15) | `docs/DECISIONS.md`                                                                                                                                     |
 | Architecture                                | `docs/ARCHITECTURE.md`                                                                                                                                  |
 | DB schema, Mermaid ERD, RLS matrix          | `docs/DATABASE.md`                                                                                                                                      |
@@ -60,6 +60,25 @@ Supabase project was created and no migration was applied to one.
 4. The PR is watched for review comments and CI.
 
 **Waiting for the owner's go-ahead before starting Phase 02.**
+
+### Tooling session (2026-11-26) — no product code
+
+- `docs/MASTER_PROMPT.md` replaced with the owner's full-build master prompt + addendum
+  (the Phase 01 prompt it replaced is in git history, commit `55528fd`). The text as supplied
+  ends mid-sentence in §12.10 ("manual paym") — sections after 12.10 (incl. §13 AI
+  Playground, referenced by §12.9) are **missing; owner to supply**.
+- **Conflict to resolve:** MASTER_PROMPT §0 says "do not ask for approval between phases";
+  `CLAUDE.md` says "do not start the next phase without explicit owner approval". Until the
+  owner says otherwise, `CLAUDE.md` + `DECISIONS.md` win (per CLAUDE.md "source of truth").
+- Agent skills in `.claude/skills/`, pinned in `skills-lock.json` (installed via `npx skills`):
+  `supabase`, `supabase-postgres-best-practices` (supabase/agent-skills), `frontend-design`,
+  `webapp-testing` (anthropics/skills). Vendored dirs are excluded from Prettier.
+- Project skills: `rls-policy`, `i18n-rtl`, `channel-adapter`, `migration`.
+- Subagents in `.claude/agents/`: `code-reviewer`, `security-reviewer`, `test-writer`.
+- `.claude/settings.json` PostToolUse hook → `.claude/hooks/post-edit-check.sh`: ESLint on the
+  edited JS/TS file + `typecheck` of its workspace package; blocks (exit 2) on errors. Verified
+  manually: clean file → pass; injected type + lint errors → both reported, exit 2.
+- Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
 
 ### Next: Phase 02 — Platform core (not started)
 
