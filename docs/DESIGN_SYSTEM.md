@@ -208,7 +208,7 @@ Arabic copy is a starting point for a native copywriter review.
 5. Numerals: `profiles.numeral_style` = `latin` (default) or `arabic_indic`; formatting via
    `Intl.NumberFormat('ar-u-nu-arab' | 'ar-u-nu-latn')`. Dates via `Intl.DateTimeFormat` with
    workspace time zone; Gregorian default, Hijri display optional later.
-6. Mixed-direction layouts are tested with snapshots in both directions (TESTING_STRATEGY §4).
+6. Mixed-direction layouts are tested with snapshots in both directions (TESTING §4).
 7. Icons per §7; animations per §6 use logical directions.
 
 ## 11. Accessibility

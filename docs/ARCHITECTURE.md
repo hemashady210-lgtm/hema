@@ -181,7 +181,7 @@ Same as above, except: inbound via `webhooks-meta` (signature-verified, de-dupli
 `(channel_connection_id, external_message_id)`), and delivery is a `deliver_message` step that
 calls the channel adapter's `send()` with the token read from Vault. WhatsApp's 24-hour
 customer-service window is tracked on `conversations.service_window_ends_at`; outside it, only
-approved templates can be sent — **needs verification** (CHANNELS.md §5).
+approved templates can be sent — **needs verification** (INTEGRATIONS.md §5).
 
 ### 5.3 Failure handling
 
@@ -236,7 +236,7 @@ interface ConnectionProvisioner {
 
 Manual connection today and Embedded Signup v4 later produce the **same** `channel_connections`
 row (only `connection_method` differs) and the same Vault secret, so adapters and the message
-path don't change. Details: [`CHANNELS.md`](./CHANNELS.md).
+path don't change. Details: [`INTEGRATIONS.md`](./INTEGRATIONS.md).
 
 ## 9. Billing & entitlements (A12, B)
 

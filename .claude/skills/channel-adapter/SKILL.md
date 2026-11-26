@@ -5,7 +5,7 @@ description: Build or review a messaging channel adapter (Website Widget, WhatsA
 
 # Channel adapter
 
-Source of truth: `docs/ARCHITECTURE.md §8`, `docs/CHANNELS.md` (status machines, adapter
+Source of truth: `docs/ARCHITECTURE.md §8`, `docs/INTEGRATIONS.md` (status machines, adapter
 contract, platform specifics table), `docs/DECISIONS.md` (A14). Schema: `channel_connections`,
 `channel_connection_requests`, `channel_connection_events`, `widget_configs`.
 
@@ -51,7 +51,7 @@ only `connection_method` differs — so adapters and the message path never fork
 8. **Never invent Meta behavior.** Graph API version comes from `META_GRAPH_API_VERSION`. Field
    names, permissions, messaging-window rules, template requirements and Embedded Signup steps
    must be checked against current official Meta docs; anything unconfirmed is marked
-   `needs verification` in `docs/CHANNELS.md §5` and kept behind the adapter. Instagram is not
+   `needs verification` in `docs/INTEGRATIONS.md §5` and kept behind the adapter. Instagram is not
    assumed identical to Messenger.
 9. **Feature flags.** OAuth / Embedded Signup code paths stay behind `meta_embedded_signup`
    (OFF). Missing credentials → real code path + mocked tests + UI status "not configured".

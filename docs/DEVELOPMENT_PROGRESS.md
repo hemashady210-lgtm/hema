@@ -15,12 +15,12 @@ Last updated: 2026-11-26 (reconciliation session). Phases follow the 17-phase pl
 | DB schema, Mermaid ERD, RLS matrix          | `docs/DATABASE.md`                                                                                                                                      |
 | SQL migrations (12 files, **not applied**)  | `supabase/migrations/`                                                                                                                                  |
 | pgTAP tests (32 assertions)                 | `supabase/tests/database/`                                                                                                                              |
-| API spec                                    | `docs/API_SPEC.md`                                                                                                                                      |
+| API spec                                    | `docs/API.md`                                                                                                                                           |
 | AI engine design (+ cost model)             | `docs/AI_ENGINE.md`                                                                                                                                     |
 | Billing design                              | `docs/BILLING.md`                                                                                                                                       |
-| Channels / Connect section                  | `docs/CHANNELS.md`                                                                                                                                      |
+| Channels / Connect section                  | `docs/INTEGRATIONS.md`                                                                                                                                  |
 | Design system + tokens                      | `docs/DESIGN_SYSTEM.md`, `apps/dashboard/src/styles/{tokens,globals}.css`                                                                               |
-| Roadmap, testing strategy, risk register    | `docs/ROADMAP.md`, `docs/TESTING_STRATEGY.md`, `docs/RISK_REGISTER.md`                                                                                  |
+| Roadmap, testing strategy, risk register    | `docs/ROADMAP.md`, `docs/TESTING.md`, `docs/RISKS.md`                                                                                                   |
 | Project context, CLAUDE.md, README          | `docs/PROJECT_CONTEXT.md`, `CLAUDE.md`, `README.md`                                                                                                     |
 | Monorepo scaffold + base configs            | `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `eslint.config.js`, Prettier, EditorConfig, `.nvmrc`, CI workflow, per-app/package configs |
 | `.env.example` (placeholders only)          | `.env.example`                                                                                                                                          |

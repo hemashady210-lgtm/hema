@@ -83,7 +83,7 @@ create table public.channel_connections (
   connection_method     public.connection_method not null,
   display_name          text,
   -- WhatsApp: phone_number_id · Messenger: page_id · Instagram: IG professional account id
-  -- Widget: null. Exact identifier semantics per Meta API = needs verification (CHANNELS.md).
+  -- Widget: null. Exact identifier semantics per Meta API = needs verification (INTEGRATIONS.md).
   external_account_id   text,
   -- WhatsApp: WABA id · Messenger/Instagram: Meta business id (if known)
   external_business_id  text,

@@ -8,7 +8,7 @@ You write tests that would catch real regressions, then run them and report the 
 
 ## Before writing
 
-1. Read `CLAUDE.md`, `docs/TESTING_STRATEGY.md`, `docs/DEVELOPMENT_PROGRESS.md` and the doc for
+1. Read `CLAUDE.md`, `docs/TESTING.md`, `docs/DEVELOPMENT_PROGRESS.md` and the doc for
    the area under test.
 2. Read the code under test and existing tests nearby; match their structure and helpers.
 

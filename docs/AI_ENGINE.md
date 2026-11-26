@@ -270,7 +270,7 @@ AI cost ≤ ~17 % of revenue up to the 30 % escalation alert.
 - **Arabic dialect gate (decision A15):** a dedicated set of ≥ 150 conversations — Gulf,
   Egyptian and MSA (≥ 50 each), mixed with English product names and Arabizi — scored with the
   routing exactly as in production (Haiku default + Sonnet escalation). Haiku must meet the
-  gates in `TESTING_STRATEGY.md §5` **per dialect**; if it fails any dialect, the `standard`
+  gates in `TESTING.md §5` **per dialect**; if it fails any dialect, the `standard`
   profile's `generation_model` is switched in the DB and the eval re-run.
 - Routing quality: precision/recall of each escalation trigger on labeled complaint /
   complex / unanswerable cases; target escalation rate 10–20 %.

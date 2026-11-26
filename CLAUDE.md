@@ -5,8 +5,8 @@ Guidance for AI assistants (and humans) working in this repository.
 ## Start here
 
 1. Read `docs/DECISIONS.md` (source of truth) and `docs/DEVELOPMENT_PROGRESS.md` (current phase).
-2. Read the doc for the area you touch: `ARCHITECTURE`, `DATABASE`, `API_SPEC`, `AI_ENGINE`,
-   `BILLING`, `CHANNELS`, `DESIGN_SYSTEM` (all in `docs/`).
+2. Read the doc for the area you touch: `ARCHITECTURE`, `DATABASE`, `API`, `AI_ENGINE`,
+   `BILLING`, `INTEGRATIONS`, `DESIGN_SYSTEM` (all in `docs/`).
 3. Work only within the **current approved phase** (see `docs/ROADMAP.md`). Do not start the next
    phase without explicit owner approval.
 

@@ -1,7 +1,7 @@
 # Edge Functions (Deno)
 
 No function code exists yet (Phase 01 = design only). Planned functions, owners and contracts
-are specified in [`docs/API_SPEC.md`](../../docs/API_SPEC.md) and
+are specified in [`docs/API.md`](../../docs/API.md) and
 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md#4-edge-functions).
 
 | Function          | Auth                              | Purpose                                               | Phase |
@@ -15,4 +15,4 @@ are specified in [`docs/API_SPEC.md`](../../docs/API_SPEC.md) and
 
 Shared code will live in `supabase/functions/_shared/`. How `packages/ai-engine` is imported into
 functions (import map vs. vendored build) is an open item — **needs verification** against the
-current Supabase CLI bundler (see RISK_REGISTER R-14).
+current Supabase CLI bundler (see `docs/RISKS.md` R-14).
