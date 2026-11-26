@@ -67,6 +67,12 @@ max_frequency = "1s"
 otp_length = 6
 otp_expiry = 3600
 
+# SMS sign-up off with confirmations on: Auth then answers sign-ups for existing addresses the
+# same way as new ones (security review L1; GoTrue behaviour = needs verification on hosted).
+[auth.sms]
+enable_signup = false
+enable_confirmations = true
+
 # Google sign-in (E8): off unless configured. The dashboard hides the button unless
 # VITE_AUTH_GOOGLE_ENABLED=true. Env names from the Supabase Google guide (DEPLOYMENT.md §6).
 [auth.external.google]

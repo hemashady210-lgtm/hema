@@ -8,7 +8,7 @@ import { errorMessage } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { AuthHeading } from './AuthLayout';
-import { callbackUrl, useNextPath, withNext } from './shared';
+import { callbackUrl, setPasswordPath, useNextPath, withNext } from './shared';
 
 export function CheckEmailPage() {
   const { t } = useTranslation();
@@ -22,10 +22,10 @@ export function CheckEmailPage() {
   const resend = async () => {
     setState('sending');
     setError(null);
-    const { error: e } = await supabase.auth.resend({
-      type: 'signup',
+    // Same email-link sign-up as the form (works for new and existing addresses alike).
+    const { error: e } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: callbackUrl(next) },
+      options: { shouldCreateUser: true, emailRedirectTo: callbackUrl(setPasswordPath(next)) },
     });
     if (e) {
       setError(errorMessage(t, e));

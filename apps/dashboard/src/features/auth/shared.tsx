@@ -18,6 +18,11 @@ export function withNext(path: string, next: string, extra: Record<string, strin
   return s ? `${path}?${s}` : path;
 }
 
+/** After an email-link sign-up the user chooses a password, then continues to `next`. */
+export function setPasswordPath(next: string): string {
+  return `/auth/set-password${next && next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`;
+}
+
 export function callbackUrl(next: string): string {
   return `${window.location.origin}/auth/callback${next && next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`;
 }

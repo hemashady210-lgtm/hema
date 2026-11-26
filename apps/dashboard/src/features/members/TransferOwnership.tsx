@@ -71,18 +71,19 @@ function TransferDialog({ onClose }: { onClose(): void }) {
       destructive
       loading={transfer.isPending}
       confirmDisabled={!target}
-      onConfirm={() => {
+      onConfirm={async () => {
         if (!target) return;
         setError(null);
-        transfer.mutate(target, {
-          onSuccess: () => {
-            toast.success(
-              t('members.transfer.done', { name: chosen?.full_name ?? chosen?.email ?? '' }),
-            );
-            onClose();
-          },
-          onError: (err) => setError(errorMessage(t, err)),
-        });
+        try {
+          // mutateAsync: this section unmounts once the caller is no longer the owner.
+          await transfer.mutateAsync(target);
+          toast.success(
+            t('members.transfer.done', { name: chosen?.full_name ?? chosen?.email ?? '' }),
+          );
+          onClose();
+        } catch (err) {
+          setError(errorMessage(t, err));
+        }
       }}
     >
       {candidates.length === 0 ? (

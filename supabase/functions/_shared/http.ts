@@ -65,13 +65,31 @@ export function corsHeaders(req: Request, allowedOrigins: string[]): Record<stri
     headers['access-control-allow-origin'] = origin;
     headers['access-control-allow-headers'] = ALLOWED_HEADERS;
     headers['access-control-allow-methods'] = 'GET, POST, PATCH, DELETE, OPTIONS';
-    headers['access-control-expose-headers'] = 'x-request-id, retry-after, ratelimit-remaining';
+    headers['access-control-expose-headers'] = 'x-request-id, retry-after';
     headers['access-control-max-age'] = '600';
   }
   return headers;
 }
 
+/**
+ * Client address for per-IP rate limits. The first X-Forwarded-For entry is client-controlled,
+ * so the entry appended by the nearest proxy (the last one) is used. Which header the Supabase
+ * gateway sets is **needs verification**; preview tokens are 256-bit, so this limit only slows
+ * scanning.
+ */
+const IP = /^[0-9a-f:.]{2,45}$/i;
+
 export function clientIp(req: Request): string {
-  const fwd = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  return fwd || req.headers.get('x-real-ip') || 'unknown';
+  const fwd = req.headers
+    .get('x-forwarded-for')
+    ?.split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const candidate =
+    req.headers.get('cf-connecting-ip')?.trim() ||
+    fwd?.[fwd.length - 1] ||
+    req.headers.get('x-real-ip')?.trim() ||
+    '';
+  // Only well-formed addresses become bucket keys (no unbounded attacker-chosen strings).
+  return IP.test(candidate) ? candidate.toLowerCase() : 'unknown';
 }

@@ -277,13 +277,50 @@ Deno.test('invite: a Resend failure keeps the invitation and records failed', as
   );
 });
 
-Deno.test('invite: no APP_URL on a hosted project → 500, never a wrong link', async () => {
-  const { db } = fakeDb({ create_invitation: () => ({ data: inviteRow, error: null }) });
+Deno.test('invite: no APP_URL on a hosted project → 500 before anything is written', async () => {
+  const { db, calls } = fakeDb({ create_invitation: () => ({ data: inviteRow, error: null }) });
   const res = await app({ db, env: { ...env, appUrl: null } }).handle(
     req('POST', `/v1/workspaces/${WS}/invitations`, { email: 'a@b.co', role: 'agent' }),
   );
   assertEquals(res.status, 500);
   assertEquals((await res.json()).error.details, { reason: 'app_url_not_configured' });
+  assert(!calls.some((c) => c.fn === 'create_invitation'), 'no invitation committed');
+  const renew = await app({ db, env: { ...env, appUrl: null } }).handle(
+    req('POST', `/v1/workspaces/${WS}/invitations/${INV}/renew`),
+  );
+  assertEquals(renew.status, 500);
+  assert(!calls.some((c) => c.fn === 'renew_invitation'), 'token not rotated');
+});
+
+Deno.test(
+  'invite: a throwing mailer or a failed status write never loses the committed invitation',
+  async () => {
+    const { db, calls } = fakeDb({
+      create_invitation: () => ({ data: inviteRow, error: null }),
+      set_invitation_email_status: () => ({ data: null, error: { message: 'db down' } }),
+    });
+    const mailer: Mailer & { sent: OutgoingEmail[] } = {
+      configured: true,
+      sent: [],
+      send: () => Promise.reject(new Error('boom')),
+    };
+    const res = await app({ db, mailer }).handle(
+      req('POST', `/v1/workspaces/${WS}/invitations`, { email: 'new@test.local', role: 'agent' }),
+    );
+    assertEquals(res.status, 201);
+    const body = await res.json();
+    assertEquals(body.email_status, 'failed');
+    assertMatch(body.invite_url, /\/invite\//);
+    assertEquals(
+      calls.find((c) => c.fn === 'set_invitation_email_status')!.args.p_status,
+      'failed',
+    );
+  },
+);
+
+Deno.test('malformed path escapes are 404, not 500', async () => {
+  const res = await app().handle(req('DELETE', `/v1/workspaces/%E0%A4%A/members/x`));
+  assertEquals(res.status, 404);
 });
 
 Deno.test('invite: owner role rejected by the schema', async () => {

@@ -6,6 +6,7 @@ import { randomToken, sha256Hex } from './crypto.ts';
 import { createResendMailer } from './email/resend.ts';
 import { invitationEmail } from './email/invitation.ts';
 import { bearerToken } from './auth.ts';
+import { clientIp } from './http.ts';
 
 Deno.test('env: new-style key dictionaries win over legacy keys (F5)', () => {
   const env = loadEnv(
@@ -154,6 +155,7 @@ Deno.test('invitation email: ar is RTL, names escaped and isolated, URL kept LTR
   assert(!ar.html.includes('<الديوان>'));
   assert(ar.text.includes('https://app.example.com/invite/tok'));
   assert(ar.subject.includes('دعوة'));
+  assert(!ar.subject.includes('الديوان'), 'workspace name stays out of the subject');
   const en = invitationEmail({
     locale: 'en',
     workspaceName: 'Diwan',
@@ -165,3 +167,42 @@ Deno.test('invitation email: ar is RTL, names escaped and isolated, URL kept LTR
   assert(en.html.includes('dir="ltr"'));
   assert(en.text.includes("You've been invited"));
 });
+
+Deno.test(
+  'clientIp: proxy-appended address, not the client-supplied first X-Forwarded-For entry',
+  () => {
+    const r = (h: Record<string, string>) => new Request('http://x', { headers: h });
+    assertEquals(clientIp(r({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7' })), '203.0.113.7');
+    assertEquals(
+      clientIp(r({ 'cf-connecting-ip': '198.51.100.1', 'x-forwarded-for': '6.6.6.6' })),
+      '198.51.100.1',
+    );
+    assertEquals(clientIp(r({})), 'unknown');
+    assertEquals(clientIp(r({ 'x-forwarded-for': 'evil-bucket-key' })), 'unknown');
+  },
+);
+
+Deno.test(
+  'invitation email: link-like or bidi-spoofed names are dropped; subject has no user text',
+  async () => {
+    const { safeDisplayName } = await import('./email/invitation.ts');
+    assertEquals(safeDisplayName('  Al Diwan  Café '), 'Al Diwan Café');
+    assertEquals(safeDisplayName('Account locked – verify at evil.example'), null);
+    assertEquals(safeDisplayName('https://x.io'), null);
+    assertEquals(safeDisplayName('Sara\u202eevil'), 'Saraevil');
+    const mail = invitationEmail({
+      locale: 'en',
+      workspaceName: 'Verify now at evil.example',
+      inviterName: 'Support <www.evil.example>',
+      role: 'admin',
+      url: 'https://app.example.com/invite/t',
+      expiresAt: new Date(),
+    });
+    assert(!mail.subject.includes('evil'), 'subject carries no user text');
+    assert(
+      !mail.html.includes('evil') && !mail.text.includes('evil'),
+      'unsafe names never reach the email',
+    );
+    assert(mail.text.includes('join a workspace'));
+  },
+);

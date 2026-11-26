@@ -4,7 +4,7 @@ import { AuthLayout } from '@/features/auth/AuthLayout';
 import { CheckEmailPage } from '@/features/auth/CheckEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage';
 import { RedirectIfAuthenticated, RequireAuth } from '@/features/auth/guards';
-import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage';
+import { ResetPasswordPage, SetPasswordPage } from '@/features/auth/ResetPasswordPage';
 import { SignInPage } from '@/features/auth/SignInPage';
 import { SignUpPage } from '@/features/auth/SignUpPage';
 import { AccountPage } from '@/features/account/AccountPage';
@@ -34,6 +34,7 @@ export const authRoutes: RouteObject = {
     },
     { path: 'check-email', element: <CheckEmailPage /> },
     { path: 'reset-password', element: <ResetPasswordPage /> },
+    { path: 'set-password', element: <SetPasswordPage /> },
     { path: 'callback', element: <AuthCallbackPage /> },
   ],
 };

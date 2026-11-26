@@ -97,40 +97,80 @@ describe('sign in', () => {
   });
 });
 
-describe('sign up', () => {
-  it('validates password rules and terms in both languages', async () => {
+describe('sign up (email link first, password after — security review H1)', () => {
+  it('validates email and terms in both languages and asks for no password', async () => {
     setLocale('en');
     renderRoutes(routes, '/auth/sign-up');
     await userEvent.type(await screen.findByLabelText('Full name'), 'Sara');
-    await userEvent.type(screen.getByLabelText('Work email'), 'sara@example.com');
-    await userEvent.type(screen.getByLabelText('Password', { selector: 'input' }), 'abcdefgh');
+    await userEvent.type(screen.getByLabelText('Work email'), 'not-an-email');
     await userEvent.click(screen.getByRole('button', { name: 'Create account' }));
-    expect(await screen.findByText('Include at least one number.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Enter a valid email address, like name@company.com.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Accept the terms to continue.')).toBeInTheDocument();
-    expect(supabaseMock.client.auth.signUp).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Password', { selector: 'input' })).not.toBeInTheDocument();
+    expect(supabaseMock.client.auth.signInWithOtp).not.toHaveBeenCalled();
   });
 
-  it('creates the account with name + current language and asks to confirm the email', async () => {
+  it('sends an email link with name + current language, then shows "confirm your email"', async () => {
     setLocale('ar');
     renderRoutes(routes, '/auth/sign-up?next=/invite/abc');
     await userEvent.type(await screen.findByLabelText('الاسم الكامل'), 'سارة');
     await userEvent.type(screen.getByLabelText('بريد العمل'), 'sara@example.com');
-    await userEvent.type(screen.getByLabelText('كلمة المرور'), 'abc12345');
     await userEvent.click(screen.getByRole('checkbox'));
     await userEvent.click(screen.getByRole('button', { name: 'إنشاء الحساب' }));
     await waitFor(() =>
-      expect(supabaseMock.client.auth.signUp).toHaveBeenCalledWith({
+      expect(supabaseMock.client.auth.signInWithOtp).toHaveBeenCalledWith({
         email: 'sara@example.com',
-        password: 'abc12345',
         options: {
-          emailRedirectTo: 'http://localhost:3000/auth/callback?next=%2Finvite%2Fabc',
+          shouldCreateUser: true,
+          emailRedirectTo:
+            'http://localhost:3000/auth/callback?next=%2Fauth%2Fset-password%3Fnext%3D%252Finvite%252Fabc',
           data: { full_name: 'سارة', locale: 'ar' },
         },
       }),
     );
+    expect(supabaseMock.client.auth.signUp).not.toHaveBeenCalled();
     expect(
       await screen.findByRole('heading', { name: 'أكّد بريدك الإلكتروني' }),
     ).toBeInTheDocument();
+  });
+
+  it('after confirming, the user chooses a password; other sessions are signed out', async () => {
+    setLocale('en');
+    supabaseMock.tableData.profiles = {
+      id: 'u9',
+      email: 's@x.co',
+      full_name: 'S',
+      avatar_path: null,
+      locale: 'en',
+      theme: 'dark',
+    };
+    supabaseMock.setSession({ user: { id: 'u9', email: 's@x.co' }, access_token: 't' });
+    renderRoutes(routes, '/auth/set-password?next=/invite/abc');
+    expect(
+      await screen.findByRole('heading', { name: 'Choose your password' }),
+    ).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('New password', { selector: 'input' }), 'abcdefgh');
+    await userEvent.type(
+      screen.getByLabelText('Confirm new password', { selector: 'input' }),
+      'abcdefgh',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save password and continue' }));
+    expect(await screen.findByText('Include at least one number.')).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText('New password', { selector: 'input' }));
+    await userEvent.type(screen.getByLabelText('New password', { selector: 'input' }), 'abc12345');
+    await userEvent.clear(screen.getByLabelText('Confirm new password', { selector: 'input' }));
+    await userEvent.type(
+      screen.getByLabelText('Confirm new password', { selector: 'input' }),
+      'abc12345',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Save password and continue' }));
+    await waitFor(() =>
+      expect(supabaseMock.client.auth.updateUser).toHaveBeenCalledWith({ password: 'abc12345' }),
+    );
+    expect(supabaseMock.client.auth.signOut).toHaveBeenCalledWith({ scope: 'others' });
+    supabaseMock.setSession(null);
   });
 });
 

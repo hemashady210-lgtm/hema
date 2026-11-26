@@ -7,7 +7,12 @@ export const LIMITS = {
   createWorkspace: { limit: 10, windowSeconds: 3600 },
   slugCheck: { limit: 120, windowSeconds: 600 },
   invite: { limit: 30, windowSeconds: 3600 },
+  // Security review L3: cap what one workspace / one recipient / one link can trigger per day.
+  inviteWorkspaceDaily: { limit: 50, windowSeconds: 86_400 },
+  inviteRecipientDaily: { limit: 5, windowSeconds: 86_400 },
+  renewDaily: { limit: 5, windowSeconds: 86_400 },
   preview: { limit: 30, windowSeconds: 600 },
+  previewGlobal: { limit: 3000, windowSeconds: 600 },
   accept: { limit: 20, windowSeconds: 600 },
   members: { limit: 60, windowSeconds: 600 },
 } satisfies Record<string, RateLimitRule>;

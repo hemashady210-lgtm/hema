@@ -78,7 +78,6 @@ describe('auth helpers', () => {
     const r = signUpSchema.safeParse({
       full_name: 'S',
       email: 'bad',
-      password: 'abc12345',
       accept_terms: false,
     });
     expect(r.success).toBe(false);

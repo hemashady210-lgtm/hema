@@ -101,11 +101,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncedFor = useRef<string | null>(null);
   const { setLocale: applyLocale, setTheme: applyTheme, locale, theme } = prefs;
   useEffect(() => {
-    if (!profile || syncedFor.current === profile.id) return;
+    if (!profile || !user || syncedFor.current === profile.id) return;
     syncedFor.current = profile.id;
+    // A brand-new account (email-link sign-up, OAuth) keeps the language and theme the visitor
+    // chose before signing up, instead of the profile defaults.
+    const fresh = Date.now() - new Date(user.created_at).getTime() < 10 * 60_000;
+    if (fresh) {
+      if (profile.locale !== locale || profile.theme !== theme) {
+        queryClient.setQueryData<Profile | null>(profileKey(user.id), (p) =>
+          p ? { ...p, locale, theme } : p,
+        );
+        void supabase.from('profiles').update({ locale, theme }).eq('id', user.id);
+      }
+      return;
+    }
     if (profile.locale !== locale) applyLocale(profile.locale);
     if (profile.theme !== theme) applyTheme(profile.theme);
-  }, [profile, locale, theme, applyLocale, applyTheme]);
+  }, [profile, user, locale, theme, applyLocale, applyTheme, queryClient]);
   useEffect(() => {
     if (!user) syncedFor.current = null;
   }, [user]);

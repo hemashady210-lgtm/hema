@@ -13,7 +13,7 @@ import { fieldError, useZodForm } from '@/lib/forms';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { AuthHeading } from './AuthLayout';
-import { GoogleButton, callbackUrl, useNextPath, withNext } from './shared';
+import { GoogleButton, callbackUrl, setPasswordPath, useNextPath, withNext } from './shared';
 
 export function SignInPage() {
   const { t } = useTranslation();
@@ -74,7 +74,7 @@ function PasswordForm({ next }: { next: string }) {
     await supabase.auth.resend({
       type: 'signup',
       email: unconfirmed,
-      options: { emailRedirectTo: callbackUrl(next) },
+      options: { emailRedirectTo: callbackUrl(setPasswordPath(next)) },
     });
     setResent(true);
   };

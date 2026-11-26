@@ -107,13 +107,15 @@ export const ar: Translation = {
       subtitle: 'ابدأ تجربة مجانية لمدة 7 أيام. دون بطاقة دفع.',
       fullName: 'الاسم الكامل',
       email: 'بريد العمل',
-      password: 'كلمة المرور',
-      passwordHint: '8 أحرف على الأقل، تتضمن حرفًا ورقمًا.',
+      howItWorks: 'سنرسل إليك رابطًا لتأكيد بريدك، ثم تختار كلمة المرور.',
       terms: 'أوافق على شروط الخدمة وسياسة الخصوصية.',
       submit: 'إنشاء الحساب',
       submitting: 'جارٍ إنشاء الحساب…',
       haveAccount: 'لديك حساب بالفعل؟',
       signIn: 'سجّل الدخول',
+    },
+    password: {
+      hint: '8 أحرف على الأقل، تتضمن حرفًا ورقمًا.',
       strength: {
         label: 'قوة كلمة المرور',
         tooShort: 'قصيرة جدًا',
@@ -122,6 +124,13 @@ export const ar: Translation = {
         good: 'جيدة',
         strong: 'قوية',
       },
+    },
+    setPassword: {
+      title: 'اختر كلمة المرور',
+      subtitle: 'تم تأكيد بريدك. عيّن كلمة مرور لتسجيل الدخول في المرة القادمة.',
+      submit: 'حفظ كلمة المرور والمتابعة',
+      submitting: 'جارٍ الحفظ…',
+      done: 'تم حفظ كلمة المرور.',
     },
     checkEmail: {
       title: 'أكّد بريدك الإلكتروني',
@@ -356,7 +365,7 @@ export const ar: Translation = {
       revokeConfirm: 'إلغاء الدعوة',
       revoked: 'تم إلغاء الدعوة.',
       emailStatus: {
-        pending: 'جارٍ الإرسال…',
+        pending: 'لم يُرسل بعد',
         sent: 'أُرسل البريد',
         failed: 'فشل الإرسال',
         not_configured: 'البريد غير مُعدّ',

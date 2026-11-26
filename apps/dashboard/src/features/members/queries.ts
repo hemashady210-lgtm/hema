@@ -134,6 +134,11 @@ export function useMemberMutations(workspaceId: string) {
         api<void>(`/v1/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
       onSuccess: refresh,
     }),
+    /** Leaving: the caller navigates away first, then updates the caches (no "not found" flash). */
+    leave: useMutation({
+      mutationFn: (userId: string) =>
+        api<void>(`/v1/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
+    }),
     transfer: useMutation({
       mutationFn: (userId: string) =>
         api(`/v1/workspaces/${workspaceId}/ownership`, { body: { user_id: userId } }),

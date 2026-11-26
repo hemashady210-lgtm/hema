@@ -48,49 +48,69 @@ async function assertInvitationInWorkspace(ctx: Ctx, invitationId: string, works
   if (ws !== workspaceId) throw new ApiError('not_found');
 }
 
-/** Emails the link when Resend is configured and records what really happened. */
+/** Invitation links need the dashboard origin. Checked BEFORE any write (no orphaned invitations). */
+function requireAppUrl(ctx: Ctx): string {
+  if (!ctx.deps.env.appUrl) {
+    ctx.log.log('error', 'APP_URL is not configured; cannot build invitation links');
+    throw new ApiError('internal', { reason: 'app_url_not_configured' });
+  }
+  return ctx.deps.env.appUrl;
+}
+
+/**
+ * Emails the link when Resend is configured and records what really happened. The invitation
+ * is already committed at this point, so nothing here fails the request: an unexpected error is
+ * recorded as `failed` and the inviter still gets the link to share.
+ */
 async function deliver(
   ctx: Ctx,
   inv: InvitationRow,
   token: string,
   actorId: string,
+  appUrl: string,
 ): Promise<CreateInvitationResponse> {
-  if (!ctx.deps.env.appUrl) {
-    ctx.log.log('error', 'APP_URL is not configured; cannot build invitation links');
-    throw new ApiError('internal', { reason: 'app_url_not_configured' });
-  }
-  const inviteUrl = `${ctx.deps.env.appUrl}/invite/${token}`;
+  const inviteUrl = `${appUrl}/invite/${token}`;
   let status: EmailDeliveryStatus = 'not_configured';
   let error: string | null = null;
   if (ctx.deps.mailer.configured) {
-    const [workspaceName, inviterName] = await Promise.all([
-      ctx.deps.db.workspaceName(inv.workspace_id),
-      ctx.deps.db.profileName(actorId),
-    ]);
-    const mail = invitationEmail({
-      locale: inv.locale,
-      workspaceName: workspaceName ?? '',
-      inviterName,
-      role: inv.role,
-      url: inviteUrl,
-      expiresAt: new Date(inv.expires_at),
-    });
-    const result = await ctx.deps.mailer.send({
-      to: inv.email,
-      ...mail,
-      idempotencyKey: `invitation:${inv.id}:${(await sha256Hex(token)).slice(0, 16)}`,
-    });
-    status = result.status;
-    if (result.status === 'failed') {
-      error = result.error;
-      ctx.log.log('warn', 'invitation email failed', { invitation_id: inv.id });
+    try {
+      const [workspaceName, inviterName] = await Promise.all([
+        ctx.deps.db.workspaceName(inv.workspace_id),
+        ctx.deps.db.profileName(actorId),
+      ]);
+      const mail = invitationEmail({
+        locale: inv.locale,
+        workspaceName: workspaceName ?? '',
+        inviterName,
+        role: inv.role,
+        url: inviteUrl,
+        expiresAt: new Date(inv.expires_at),
+      });
+      const result = await ctx.deps.mailer.send({
+        to: inv.email,
+        ...mail,
+        idempotencyKey: `invitation:${inv.id}:${(await sha256Hex(token)).slice(0, 16)}`,
+      });
+      status = result.status;
+      if (result.status === 'failed') error = result.error;
+    } catch (err) {
+      status = 'failed';
+      error = err instanceof Error ? err.message.slice(0, 300) : 'unexpected error';
     }
+    if (status === 'failed')
+      ctx.log.log('warn', 'invitation email failed', { invitation_id: inv.id });
   }
-  await rpc(ctx, 'set_invitation_email_status', {
+  const { error: recordError } = await ctx.deps.db.rpc('set_invitation_email_status', {
     p_invitation_id: inv.id,
     p_status: status,
     p_error: error,
   });
+  if (recordError) {
+    ctx.log.log('error', 'could not record invitation email status', {
+      invitation_id: inv.id,
+      code: recordError.code,
+    });
+  }
   return {
     invitation: {
       id: inv.id,
@@ -113,6 +133,13 @@ export const invitationRoutes: Route<Ctx>[] = [
     const ws = requireUuid(p.ws);
     await limit(ctx, `invite:${user.id}`, LIMITS.invite);
     const input = await readJson(ctx.req, createInvitationSchema);
+    const appUrl = requireAppUrl(ctx);
+    await limit(ctx, `invite-ws:${ws}`, LIMITS.inviteWorkspaceDaily);
+    await limit(
+      ctx,
+      `invite-to:${(await sha256Hex(input.email.toLowerCase())).slice(0, 32)}`,
+      LIMITS.inviteRecipientDaily,
+    );
     const token = randomToken();
     const inv = await rpc<InvitationRow>(ctx, 'create_invitation', {
       p_actor_id: user.id,
@@ -122,7 +149,7 @@ export const invitationRoutes: Route<Ctx>[] = [
       p_token_hash: await sha256Hex(token),
       p_locale: input.locale,
     });
-    return json(await deliver(ctx, inv, token, user.id), 201);
+    return json(await deliver(ctx, inv, token, user.id, appUrl), 201);
   }),
 
   // POST /v1/workspaces/{ws}/invitations/{id}/renew — new link (old one stops working) + resend.
@@ -132,13 +159,16 @@ export const invitationRoutes: Route<Ctx>[] = [
     const id = requireUuid(p.id);
     await limit(ctx, `invite:${user.id}`, LIMITS.invite);
     await assertInvitationInWorkspace(ctx, id, ws);
+    const appUrl = requireAppUrl(ctx);
+    await limit(ctx, `invite-ws:${ws}`, LIMITS.inviteWorkspaceDaily);
+    await limit(ctx, `renew:${id}`, LIMITS.renewDaily);
     const token = randomToken();
     const inv = await rpc<InvitationRow>(ctx, 'renew_invitation', {
       p_actor_id: user.id,
       p_invitation_id: id,
       p_token_hash: await sha256Hex(token),
     });
-    return json(await deliver(ctx, inv, token, user.id));
+    return json(await deliver(ctx, inv, token, user.id, appUrl));
   }),
 
   // DELETE /v1/workspaces/{ws}/invitations/{id} — revoke.
@@ -155,6 +185,7 @@ export const invitationRoutes: Route<Ctx>[] = [
   // POST /v1/invitations/preview {token} — public (the link may be opened signed out).
   // POST keeps the token out of URLs and access logs.
   route('POST', '/v1/invitations/preview', async (ctx) => {
+    await limit(ctx, 'preview:all', LIMITS.previewGlobal);
     await limit(ctx, `preview:${clientIp(ctx.req)}`, LIMITS.preview);
     const { token } = await readJson(ctx.req, invitationTokenBodySchema);
     const rows = await rpc<PreviewRow[]>(ctx, 'get_invitation_preview', {

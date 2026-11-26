@@ -192,3 +192,57 @@ Deno.test({
     await admin.auth.admin.deleteUser(b.id);
   },
 });
+
+const MAILPIT = Deno.env.get('MAILPIT_URL') ?? 'http://127.0.0.1:54324';
+
+async function verifyLink(email: string): Promise<string> {
+  for (let i = 0; i < 60; i++) {
+    const r = await (
+      await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)
+    ).json();
+    const id = r.messages?.[0]?.ID;
+    if (id) {
+      const m = await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json();
+      const link = /https?:\/\/[^\s"'<>]+\/auth\/v1\/verify\?[^\s"'<>]+/.exec(
+        `${m.Text}\n${m.HTML}`,
+      )?.[0];
+      if (link) return link.replace(/&amp;/g, '&');
+    }
+    await new Promise((res) => setTimeout(res, 500));
+  }
+  throw new Error(`no email for ${email}`);
+}
+
+Deno.test({
+  name: 'security H1: a password set before email confirmation does not survive it',
+  ignore: !run,
+  sanitizeOps: false,
+  sanitizeResources: false,
+  async fn() {
+    const email = `victim-${crypto.randomUUID().slice(0, 8)}@it.local`;
+    const anon = () => createClient(URL_, PUB, noSession);
+    // Attacker pre-registers the address with their own password (never confirmed).
+    const preAt = Date.now();
+    const pre = await anon().auth.signUp({ email, password: 'Attacker-pw1' });
+    assertEquals(pre.error, null);
+    await new Promise((res) => setTimeout(res, 1200)); // auth email max_frequency (1 s)
+    // The real owner signs up the way the dashboard does now: email link first.
+    const otp = await anon().auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    assertEquals(otp.error, null);
+    const link = await verifyLink(email);
+    // Real victims confirm hours later; stay outside the trigger's 5 s same-request window.
+    await new Promise((res) => setTimeout(res, Math.max(0, 6000 - (Date.now() - preAt))));
+    const res = await fetch(link, { redirect: 'manual' }); // confirms the address
+    await res.body?.cancel();
+    assert(res.status >= 300 && res.status < 400, `verify redirected (${res.status})`);
+    // The attacker's password no longer signs in.
+    const attempt = await anon().auth.signInWithPassword({ email, password: 'Attacker-pw1' });
+    assert(attempt.error, 'attacker password must be rejected after confirmation');
+    assertEquals(attempt.data.session, null);
+    const admin = createClient(URL_, SECRET, noSession);
+    const { data: prof } = await admin.from('profiles').select('id').eq('email', email).single();
+    const { data: got } = await admin.auth.admin.getUserById(prof!.id);
+    assert(got.user?.email_confirmed_at, 'address confirmed by the owner');
+    await admin.auth.admin.deleteUser(prof!.id);
+  },
+});

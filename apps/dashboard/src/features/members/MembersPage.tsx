@@ -4,6 +4,7 @@ import { Ellipsis, LogOut, RefreshCw, UserMinus, UserPlus, Users, XCircle } from
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { INVITABLE_ROLES, type CreateInvitationResponse, type InvitableRole } from '@ai-crm/shared';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
 import { EmptyState } from '@/components/empty-state';
@@ -25,7 +26,7 @@ import { Avatar, Badge, Skeleton } from '@/components/ui/misc';
 import { usePermissions } from '@/features/permissions/use-permissions';
 import { SettingsSection } from '@/features/settings/SettingsLayout';
 import { useWorkspace } from '@/features/workspaces/context';
-import { useEntitlements } from '@/features/workspaces/queries';
+import { membershipsKey, useEntitlements, type Membership } from '@/features/workspaces/queries';
 import { errorMessage } from '@/lib/errors';
 import { formatDate, initials } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -173,23 +174,47 @@ function MemberTableRow({ member }: { member: MemberRow }) {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const perms = usePermissions();
-  const { changeRole, remove } = useMemberMutations(workspace.id);
+  const queryClient = useQueryClient();
+  const { changeRole, remove, leave } = useMemberMutations(workspace.id);
   const [confirm, setConfirm] = useState<'remove' | 'leave' | null>(null);
   const isMe = member.user_id === user?.id;
   const name = member.full_name ?? member.email ?? '—';
-  const manageable = perms.canManage({ userId: member.user_id, role: member.role });
+  const target = { userId: member.user_id, role: member.role };
+  // Role changes grant access (writable workspace only); removal only reduces it.
+  const canChangeRole = perms.canManage(target);
+  const removable = perms.canRemove(target);
   const leavable = isMe && perms.canLeave();
 
-  const onRole = (role: InvitableRole) => {
+  // mutateAsync: the row may unmount when the list refreshes; the promise still settles.
+  const onRole = async (role: InvitableRole) => {
     if (role === member.role) return;
-    changeRole.mutate(
-      { userId: member.user_id, role },
-      {
-        onSuccess: () =>
-          toast.success(t('members.roleChanged', { name, role: t(`members.roles.${role}`) })),
-        onError: (err) => toast.error(errorMessage(t, err)),
-      },
-    );
+    try {
+      await changeRole.mutateAsync({ userId: member.user_id, role });
+      toast.success(t('members.roleChanged', { name, role: t(`members.roles.${role}`) }));
+    } catch (err) {
+      toast.error(errorMessage(t, err));
+    }
+  };
+
+  const onConfirm = async () => {
+    try {
+      if (confirm === 'leave') {
+        await leave.mutateAsync(member.user_id);
+        toast.success(t('members.left'));
+        // Leave the page first, then drop the workspace from the cache (no "not found" flash).
+        navigate('/', { replace: true });
+        queryClient.setQueryData<Membership[]>(membershipsKey(user?.id), (old) =>
+          old?.filter((m) => m.workspace.id !== workspace.id),
+        );
+        void queryClient.invalidateQueries({ queryKey: membershipsKey(user?.id) });
+        return;
+      }
+      await remove.mutateAsync(member.user_id);
+      toast.success(t('members.removed', { name }));
+      setConfirm(null);
+    } catch (err) {
+      toast.error(errorMessage(t, err));
+    }
   };
 
   return (
@@ -222,7 +247,7 @@ function MemberTableRow({ member }: { member: MemberRow }) {
         {formatDate(member.created_at, locale)}
       </td>
       <td className="px-4 py-3 text-end">
-        {manageable || leavable ? (
+        {removable || leavable ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -235,20 +260,24 @@ function MemberTableRow({ member }: { member: MemberRow }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
-              {manageable ? (
+              {removable ? (
                 <>
-                  <DropdownMenuLabel>{t('members.changeRole')}</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={member.role}
-                    onValueChange={(v) => onRole(v as InvitableRole)}
-                  >
-                    {INVITABLE_ROLES.map((r) => (
-                      <DropdownMenuRadioItem key={r} value={r} disabled={changeRole.isPending}>
-                        {t(`members.roles.${r}`)}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
+                  {canChangeRole ? (
+                    <>
+                      <DropdownMenuLabel>{t('members.changeRole')}</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={member.role}
+                        onValueChange={(v) => void onRole(v as InvitableRole)}
+                      >
+                        {INVITABLE_ROLES.map((r) => (
+                          <DropdownMenuRadioItem key={r} value={r} disabled={changeRole.isPending}>
+                            {t(`members.roles.${r}`)}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
                   <DropdownMenuItem destructive onSelect={() => setConfirm('remove')}>
                     <UserMinus aria-hidden />
                     {t('members.remove')}
@@ -272,19 +301,8 @@ function MemberTableRow({ member }: { member: MemberRow }) {
             confirm === 'leave' ? t('members.leaveConfirm') : t('members.removeConfirm')
           }
           destructive
-          loading={remove.isPending}
-          onConfirm={() =>
-            remove.mutate(member.user_id, {
-              onSuccess: () => {
-                setConfirm(null);
-                if (confirm === 'leave') {
-                  toast.success(t('members.left'));
-                  navigate('/', { replace: true });
-                } else toast.success(t('members.removed', { name }));
-              },
-              onError: (err) => toast.error(errorMessage(t, err)),
-            })
-          }
+          loading={remove.isPending || leave.isPending}
+          onConfirm={() => void onConfirm()}
         />
       </td>
     </tr>
@@ -300,7 +318,8 @@ function PendingInvitation({ invitation }: { invitation: InvitationRow }) {
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [renewed, setRenewed] = useState<CreateInvitationResponse | null>(null);
   const expired = new Date(invitation.expires_at).getTime() <= Date.now();
-  const writable = perms.canWrite('members.invite');
+  const canRenew = perms.canWrite('members.invite');
+  const canRevoke = perms.can('members.invite'); // revoking only reduces access
 
   return (
     <li
@@ -325,29 +344,32 @@ function PendingInvitation({ invitation }: { invitation: InvitationRow }) {
           )}
         </span>
       </div>
-      {writable ? (
+      {canRenew || canRevoke ? (
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            loading={renew.isPending}
-            onClick={() =>
-              renew.mutate(invitation.id, {
-                onSuccess: (r) => {
-                  setRenewed(r);
+          {canRenew ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={renew.isPending}
+              onClick={async () => {
+                try {
+                  setRenewed(await renew.mutateAsync(invitation.id));
                   toast.success(t('members.pending.renewed'));
-                },
-                onError: (err) => toast.error(errorMessage(t, err)),
-              })
-            }
-          >
-            <RefreshCw aria-hidden />
-            {t('members.pending.renew')}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(true)}>
-            <XCircle aria-hidden />
-            {t('members.pending.revoke')}
-          </Button>
+                } catch (err) {
+                  toast.error(errorMessage(t, err));
+                }
+              }}
+            >
+              <RefreshCw aria-hidden />
+              {t('members.pending.renew')}
+            </Button>
+          ) : null}
+          {canRevoke ? (
+            <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(true)}>
+              <XCircle aria-hidden />
+              {t('members.pending.revoke')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       <ConfirmDialog
@@ -358,15 +380,15 @@ function PendingInvitation({ invitation }: { invitation: InvitationRow }) {
         confirmLabel={t('members.pending.revokeConfirm')}
         destructive
         loading={revoke.isPending}
-        onConfirm={() =>
-          revoke.mutate(invitation.id, {
-            onSuccess: () => {
-              setConfirmRevoke(false);
-              toast.success(t('members.pending.revoked'));
-            },
-            onError: (err) => toast.error(errorMessage(t, err)),
-          })
-        }
+        onConfirm={async () => {
+          try {
+            await revoke.mutateAsync(invitation.id);
+            toast.success(t('members.pending.revoked'));
+            setConfirmRevoke(false);
+          } catch (err) {
+            toast.error(errorMessage(t, err));
+          }
+        }}
       />
       <Dialog open={!!renewed} onOpenChange={(o) => (o ? null : setRenewed(null))}>
         <DialogContent>

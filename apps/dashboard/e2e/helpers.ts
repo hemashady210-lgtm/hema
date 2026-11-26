@@ -62,6 +62,8 @@ export async function grantSeats(slug: string, seats: number): Promise<void> {
 
 /** axe: zero critical violations (ROADMAP P3 acceptance). Serious ones are reported, not fatal. */
 export async function expectNoCriticalA11y(page: Page, label: string): Promise<void> {
+  // Let entrance animations (toasts, popovers; ≤ 450 ms) settle so contrast is measured at rest.
+  await page.waitForTimeout(500);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
     .analyze();

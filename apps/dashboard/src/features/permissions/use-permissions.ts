@@ -17,7 +17,10 @@ export function usePermissions() {
     can: (capability: Capability) => can(role, capability),
     /** Capability + workspace writable (trial ended / suspended → read-only). */
     canWrite: (capability: Capability) => writable && can(role, capability),
+    /** Role changes grant access, so they need a writable workspace. */
     canManage: (target: MemberRef) => writable && canManageMember(me, target),
+    /** Removing someone only reduces access: allowed on read-only workspaces too (DB agrees). */
+    canRemove: (target: MemberRef) => canManageMember(me, target),
     canLeave: () => canLeave(me),
   };
 }

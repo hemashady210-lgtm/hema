@@ -35,7 +35,11 @@ export function match<C>(routes: Route<C>[], method: string, path: string): Matc
     pathMatched = true;
     if (r.method !== method) continue;
     const params: Params = {};
-    r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1] ?? '')));
+    try {
+      r.keys.forEach((k, i) => (params[k] = decodeURIComponent(m[i + 1] ?? '')));
+    } catch {
+      return { kind: 'not_found' }; // malformed %-escape
+    }
     return { kind: 'found', route: r, params };
   }
   return pathMatched ? { kind: 'method_not_allowed' } : { kind: 'not_found' };

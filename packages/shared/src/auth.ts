@@ -35,6 +35,12 @@ export type SignInInput = z.infer<typeof signInSchema>;
 export const magicLinkSchema = z.object({ email: emailSchema });
 export type MagicLinkInput = z.infer<typeof magicLinkSchema>;
 
+/**
+ * Sign-up proves the email first (link), then asks for a password (`setPasswordSchema`).
+ * Security review H1: Supabase Auth keeps the password of an unconfirmed account when someone
+ * else signs up with the same address, so no password is collected before confirmation
+ * (migration 0016 also clears any pre-confirmation password server-side).
+ */
 export const signUpSchema = z.object({
   full_name: z
     .string()
@@ -42,7 +48,6 @@ export const signUpSchema = z.object({
     .min(1, { error: 'validation.required' })
     .max(120, { error: 'validation.too_long' }),
   email: emailSchema,
-  password: passwordSchema,
   accept_terms: z.literal(true, { error: 'validation.accept_terms' }),
 });
 export type SignUpInput = z.infer<typeof signUpSchema>;
@@ -60,6 +65,9 @@ export const resetPasswordSchema = z
     error: 'validation.password_mismatch',
   });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/** Choosing the first password after email confirmation: same rules as a reset. */
+export const setPasswordSchema = resetPasswordSchema;
 
 /** Password strength 0–4 for the meter (length + character classes); not a policy. */
 export function passwordStrength(password: string): 0 | 1 | 2 | 3 | 4 {

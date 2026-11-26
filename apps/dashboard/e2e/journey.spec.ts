@@ -15,7 +15,9 @@ const T = {
   en: {
     fullName: 'Full name',
     email: 'Work email',
-    password: 'Password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    savePassword: 'Save password and continue',
     createAccount: 'Create account',
     checkEmail: 'Confirm your email',
     createWsTitle: 'Create your workspace',
@@ -43,7 +45,9 @@ const T = {
   ar: {
     fullName: 'الاسم الكامل',
     email: 'بريد العمل',
-    password: 'كلمة المرور',
+    newPassword: 'كلمة المرور الجديدة',
+    confirmPassword: 'تأكيد كلمة المرور الجديدة',
+    savePassword: 'حفظ كلمة المرور والمتابعة',
     createAccount: 'إنشاء الحساب',
     checkEmail: 'أكّد بريدك الإلكتروني',
     createWsTitle: 'أنشئ مساحة عملك',
@@ -70,19 +74,18 @@ const T = {
   },
 } as const;
 
-async function signUp(
-  page: Page,
-  l: (typeof T)['en' | 'ar'],
-  name: string,
-  email: string,
-  typeEmail = true,
-) {
+/** Sign-up = email link first, password after (security review H1). */
+async function signUp(page: Page, l: (typeof T)['en' | 'ar'], name: string, email: string) {
   await page.getByLabel(l.fullName).fill(name);
-  if (typeEmail) await page.getByLabel(l.email).fill(email);
-  await page.getByLabel(l.password, { exact: true }).fill(PASSWORD);
+  await page.getByLabel(l.email).fill(email);
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: l.createAccount }).click();
   await expect(page.getByRole('heading', { name: l.checkEmail })).toBeVisible();
+  await page.goto(await emailLink(email));
+  await expect(page).toHaveURL(/\/auth\/set-password/);
+  await page.getByLabel(l.newPassword, { exact: true }).fill(PASSWORD);
+  await page.getByLabel(l.confirmPassword, { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: l.savePassword }).click();
 }
 
 for (const locale of ['ar', 'en'] as const) {
@@ -101,7 +104,6 @@ for (const locale of ['ar', 'en'] as const) {
     await expect(owner.locator('html')).toHaveAttribute('dir', l.dir);
     await expectNoCriticalA11y(owner, `sign-up ${locale}`);
     await signUp(owner, l, locale === 'ar' ? 'سارة المالكة' : 'Sara Owner', ownerEmail);
-    await owner.goto(await emailLink(ownerEmail));
 
     // 2. First workspace ------------------------------------------------------------------
     await expect(owner.getByRole('heading', { name: l.createWsTitle })).toBeVisible();
@@ -150,7 +152,6 @@ for (const locale of ['ar', 'en'] as const) {
     await expectNoCriticalA11y(agent, `accept-invite ${locale}`);
     await agent.getByRole('link', { name: l.signUpToAccept }).click();
     await signUp(agent, l, locale === 'ar' ? 'خالد الموظف' : 'Khalid Agent', agentEmail);
-    await agent.goto(await emailLink(agentEmail));
     await expect(agent).toHaveURL(/\/invite\//);
     await agent.getByTestId('accept-button').click();
     await expect(agent).toHaveURL(new RegExp(`/w/${slug}$`));
@@ -180,6 +181,13 @@ for (const locale of ['ar', 'en'] as const) {
     ).toBeVisible();
     await agent.reload();
     await expect(agent.locator('html')).toHaveAttribute('dir', other);
+
+    // 7. The agent leaves: back to their (now empty) workspace list, no "not found" page.
+    await agent.goto(`/w/${slug}/settings/members`);
+    await agent.getByTestId('member-actions').click();
+    await agent.getByRole('menuitem').click();
+    await agent.getByRole('alertdialog').getByRole('button').last().click();
+    await expect(agent).toHaveURL(/\/onboarding\/workspace$/);
 
     await ownerCtx.close();
     await agentCtx.close();

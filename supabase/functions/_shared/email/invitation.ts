@@ -14,6 +14,23 @@ const ROLE_LABEL: Record<Locale, Record<InvitationEmailInput['role'], string>> =
   ar: { admin: 'مسؤول', agent: 'موظف خدمة', viewer: 'مشاهد' },
 };
 
+/**
+ * Names typed by users (workspace, inviter) end up in an email we send from our domain. Drop
+ * bidi/control characters, cap the length, and refuse anything that looks like a link, so the
+ * invitation cannot be turned into a phishing message (security review L3).
+ */
+export function safeDisplayName(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+  if (!cleaned) return null;
+  if (/(https?:|www\.|@|[a-z0-9-]+\.(?:[a-z]{2,}|xn--[a-z0-9-]+)\b)/i.test(cleaned)) return null;
+  return cleaned;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -37,33 +54,40 @@ export function invitationEmail(input: InvitationEmailInput): {
     timeZone: 'UTC',
   }).format(input.expiresAt);
   const role = ROLE_LABEL[locale][input.role];
-  const ws = input.workspaceName;
-  const who = input.inviterName;
+  const ws = safeDisplayName(input.workspaceName);
+  const who = safeDisplayName(input.inviterName);
 
   // {ws} / {who} placeholders: substituted as plain text (text part) or escaped <bdi> (HTML).
   const copy =
     locale === 'ar'
       ? {
-          subject: `دعوة للانضمام إلى ${ws} على ${product}`,
-          lead: who
-            ? `دعاك {who} للانضمام إلى مساحة العمل «{ws}» بدور ${role}.`
-            : `تمت دعوتك للانضمام إلى مساحة العمل «{ws}» بدور ${role}.`,
+          // The subject never carries user-typed text.
+          subject: `دعوة للانضمام إلى مساحة عمل على ${product}`,
+          lead: ws
+            ? who
+              ? `دعاك {who} للانضمام إلى مساحة العمل «{ws}» بدور ${role}.`
+              : `تمت دعوتك للانضمام إلى مساحة العمل «{ws}» بدور ${role}.`
+            : `تمت دعوتك للانضمام إلى مساحة عمل بدور ${role}.`,
           cta: 'قبول الدعوة',
           expires: `تنتهي صلاحية هذه الدعوة في ${date}.`,
           ignore: 'إذا لم تكن تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.',
         }
       : {
-          subject: `Join ${ws} on ${product}`,
-          lead: who
-            ? `{who} invited you to join the “{ws}” workspace as ${role}.`
-            : `You've been invited to join the “{ws}” workspace as ${role}.`,
+          subject: `You're invited to a workspace on ${product}`,
+          lead: ws
+            ? who
+              ? `{who} invited you to join the “{ws}” workspace as ${role}.`
+              : `You've been invited to join the “{ws}” workspace as ${role}.`
+            : `You've been invited to join a workspace as ${role}.`,
           cta: 'Accept invitation',
           expires: `This invitation expires on ${date}.`,
           ignore: "If you weren't expecting this, you can ignore this email.",
         };
 
   const fill = (template: string, wrap: (v: string) => string) =>
-    template.replace(/\{(ws|who)\}/g, (_m, key: string) => wrap(key === 'ws' ? ws : (who ?? '')));
+    template.replace(/\{(ws|who)\}/g, (_m, key: string) =>
+      wrap(key === 'ws' ? (ws ?? '') : (who ?? '')),
+    );
   const leadText = fill(copy.lead, (v) => v);
   const lead = fill(escapeHtml(copy.lead), (v) => `<bdi>${escapeHtml(v)}</bdi>`);
   const html = `<!doctype html>

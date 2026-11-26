@@ -2,25 +2,25 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import { passwordStrength, signUpSchema } from '@ai-crm/shared';
+import { signUpSchema } from '@ai-crm/shared';
 import { usePreferences } from '@/app/preferences';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { PasswordInput } from '@/components/ui/password-input';
 import { InlineAlert } from '@/components/inline-alert';
-import { errorMessage } from '@/lib/errors';
+import { errorCode, errorMessage } from '@/lib/errors';
 import { fieldError, useZodForm } from '@/lib/forms';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/lib/use-document-title';
-import { cn } from '@/lib/utils';
 import { AuthHeading } from './AuthLayout';
-import { GoogleButton, callbackUrl, useNextPath, withNext } from './shared';
+import { GoogleButton, callbackUrl, setPasswordPath, useNextPath, withNext } from './shared';
 
-const STRENGTH_TONE = ['bg-surface-3', 'bg-danger', 'bg-warning', 'bg-info', 'bg-success'] as const;
-const STRENGTH_KEY = ['tooShort', 'weak', 'fair', 'good', 'strong'] as const;
-
+/**
+ * Email link first, password second (security review H1): the address is proven before any
+ * password exists, so nobody can pre-register someone else's email with their own password.
+ * The same confirmation shows whether or not an account already exists (no enumeration).
+ */
 export function SignUpPage() {
   const { t } = useTranslation();
   useDocumentTitle(t('auth.signUp.title'));
@@ -31,31 +31,29 @@ export function SignUpPage() {
   const form = useZodForm(signUpSchema, {
     full_name: '',
     email: params.get('email') ?? '',
-    password: '',
     accept_terms: false as unknown as true,
   });
   const [formError, setFormError] = useState<string | null>(null);
   const { errors, isSubmitting } = form.formState;
-  const password = form.watch('password') ?? '';
-  const strength = passwordStrength(password);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithOtp({
       email: values.email,
-      password: values.password,
-      // Display data only (never used for authorization); picked up by the profile trigger.
       options: {
-        emailRedirectTo: callbackUrl(next),
+        shouldCreateUser: true,
+        emailRedirectTo: callbackUrl(setPasswordPath(next)),
+        // Display data only (never used for authorization); read by the profile trigger.
         data: { full_name: values.full_name, locale },
       },
     });
-    if (error) {
+    const status = (error as { status?: number } | null)?.status;
+    if (error && (status === 429 || errorCode(error) === 'over_email_send_rate_limit')) {
       setFormError(errorMessage(t, error));
       return;
     }
-    if (data.session) {
-      navigate(next, { replace: true });
+    if (error && status !== undefined && status >= 500) {
+      setFormError(errorMessage(t, error));
       return;
     }
     try {
@@ -75,7 +73,11 @@ export function SignUpPage() {
         <Field label={t('auth.signUp.fullName')} error={fieldError(t, errors.full_name)}>
           <Input autoComplete="name" dir="auto" {...form.register('full_name')} />
         </Field>
-        <Field label={t('auth.signUp.email')} error={fieldError(t, errors.email)}>
+        <Field
+          label={t('auth.signUp.email')}
+          error={fieldError(t, errors.email)}
+          hint={t('auth.signUp.howItWorks')}
+        >
           <Input
             type="email"
             autoComplete="email"
@@ -84,30 +86,6 @@ export function SignUpPage() {
             {...form.register('email')}
           />
         </Field>
-        <Field
-          label={t('auth.signUp.password')}
-          error={fieldError(t, errors.password)}
-          hint={t('auth.signUp.passwordHint')}
-        >
-          <PasswordInput autoComplete="new-password" {...form.register('password')} />
-        </Field>
-        <div className="-mt-2 flex items-center gap-3" aria-live="polite">
-          <div className="flex flex-1 gap-1" aria-hidden>
-            {[1, 2, 3, 4].map((i) => (
-              <span
-                key={i}
-                className={cn(
-                  'h-1 flex-1 rounded-full transition-colors duration-(--duration-standard)',
-                  i <= strength ? STRENGTH_TONE[strength] : 'bg-surface-3',
-                )}
-              />
-            ))}
-          </div>
-          <span className="min-w-16 text-end text-footnote text-text-tertiary">
-            <span className="sr-only">{t('auth.signUp.strength.label')}: </span>
-            {password ? t(`auth.signUp.strength.${STRENGTH_KEY[strength]}`) : ''}
-          </span>
-        </div>
         <Controller
           control={form.control}
           name="accept_terms"

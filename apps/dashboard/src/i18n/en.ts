@@ -106,13 +106,15 @@ export const en = {
       subtitle: 'Start a 7-day free trial. No card required.',
       fullName: 'Full name',
       email: 'Work email',
-      password: 'Password',
-      passwordHint: 'At least 8 characters, with a letter and a number.',
+      howItWorks: 'We’ll email you a link to confirm your address. Then you’ll choose a password.',
       terms: 'I agree to the terms of service and privacy policy.',
       submit: 'Create account',
       submitting: 'Creating account…',
       haveAccount: 'Already have an account?',
       signIn: 'Sign in',
+    },
+    password: {
+      hint: 'At least 8 characters, with a letter and a number.',
       strength: {
         label: 'Password strength',
         tooShort: 'Too short',
@@ -121,6 +123,13 @@ export const en = {
         good: 'Good',
         strong: 'Strong',
       },
+    },
+    setPassword: {
+      title: 'Choose your password',
+      subtitle: 'Your email is confirmed. Set a password for your next sign-in.',
+      submit: 'Save password and continue',
+      submitting: 'Saving…',
+      done: 'Password saved.',
     },
     checkEmail: {
       title: 'Confirm your email',
@@ -359,7 +368,7 @@ export const en = {
       revokeConfirm: 'Cancel invitation',
       revoked: 'Invitation cancelled.',
       emailStatus: {
-        pending: 'Sending…',
+        pending: 'Not sent yet',
         sent: 'Email sent',
         failed: 'Email failed',
         not_configured: 'Email not configured',

@@ -239,6 +239,22 @@ test('capture P3 screens', async ({ browser }) => {
         await shot(p, '05-reset-password', tag);
         await anon.close();
 
+        // New account: email link first, then "choose your password" (security review H1).
+        const fresh = await context(browser, locale, theme, vp);
+        const f = await fresh.newPage();
+        const freshEmail = `reem-${tag}-${Date.now().toString(36)}@diwan.example`;
+        await f.goto('/auth/sign-up');
+        await f.getByLabel(L('الاسم الكامل', 'Full name')).fill(L('ريم العتيبي', 'Reem Al-Otaibi'));
+        await f.getByLabel(L('بريد العمل', 'Work email')).fill(freshEmail);
+        await f.getByRole('checkbox').check();
+        const sentAt = Date.now();
+        await f.getByRole('button', { name: L('إنشاء الحساب', 'Create account') }).click();
+        await expect(f.getByRole('heading', { level: 1 })).toBeVisible();
+        await f.goto(await latestLink(freshEmail, sentAt));
+        await expect(f).toHaveURL(/set-password/);
+        await shot(f, '19-choose-password', tag);
+        await fresh.close();
+
         // Owner -------------------------------------------------------------------------
         const ownerCtx = await context(browser, locale, theme, vp, s.owner.session);
         const o = await ownerCtx.newPage();

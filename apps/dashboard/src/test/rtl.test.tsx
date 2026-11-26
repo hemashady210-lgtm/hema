@@ -72,3 +72,33 @@ describe('language & direction switching', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 });
+
+describe('new accounts keep the choices made before sign-up', () => {
+  it('pushes the current language and theme to a profile created moments ago', async () => {
+    localStorage.setItem('ai-crm.locale', 'en');
+    localStorage.setItem('ai-crm.theme', 'light');
+    supabaseMock.calls.length = 0;
+    supabaseMock.tableData.profiles = {
+      id: 'u3',
+      email: 'c@b.co',
+      full_name: 'C',
+      avatar_path: null,
+      locale: 'ar',
+      theme: 'dark',
+    };
+    supabaseMock.setSession({
+      user: { id: 'u3', email: 'c@b.co', created_at: new Date().toISOString() },
+      access_token: 't',
+    });
+    renderWithProviders(<LanguageToggle />);
+    await waitFor(() =>
+      expect(supabaseMock.calls).toContainEqual({
+        table: 'profiles',
+        op: 'update',
+        args: [{ locale: 'en', theme: 'light' }],
+      }),
+    );
+    expect(document.documentElement.lang).toBe('en');
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+});
