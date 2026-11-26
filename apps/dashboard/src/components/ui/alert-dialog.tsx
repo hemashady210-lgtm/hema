@@ -14,6 +14,7 @@ interface ConfirmDialogProps {
   onConfirm(): void;
   destructive?: boolean;
   loading?: boolean;
+  confirmDisabled?: boolean;
   children?: ReactNode;
 }
 
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   onConfirm,
   destructive,
   loading,
+  confirmDisabled,
   children,
 }: ConfirmDialogProps) {
   const { t } = useTranslation();
@@ -57,6 +59,7 @@ export function ConfirmDialog({
             <Button
               variant={destructive ? 'destructive' : 'primary'}
               loading={loading}
+              disabled={confirmDisabled}
               onClick={(e) => {
                 e.preventDefault();
                 onConfirm();

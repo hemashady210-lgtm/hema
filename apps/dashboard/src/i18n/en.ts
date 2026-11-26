@@ -219,6 +219,7 @@ export const en = {
       settings: 'Settings',
       admin: 'Platform admin',
     },
+    navLabel: 'Main navigation',
     collapse: 'Collapse sidebar',
     expand: 'Expand sidebar',
     openMenu: 'Open menu',

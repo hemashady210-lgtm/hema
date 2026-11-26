@@ -44,18 +44,26 @@ export interface ButtonProps
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild, loading, disabled, children, ...props }, ref) => {
-    const Comp = asChild ? Slot.Root : 'button';
+    const classes = cn(buttonVariants({ variant, size }), className);
+    if (asChild) {
+      // Slot needs exactly one child element (links styled as buttons never show a spinner).
+      return (
+        <Slot.Root ref={ref} className={classes} {...props}>
+          {children}
+        </Slot.Root>
+      );
+    }
     return (
-      <Comp
+      <button
         ref={ref}
-        className={cn(buttonVariants({ variant, size }), className)}
+        className={classes}
         disabled={disabled || loading}
         aria-busy={loading || undefined}
         {...props}
       >
         {loading ? <LoaderCircle aria-hidden className="animate-spin" /> : null}
         {children}
-      </Comp>
+      </button>
     );
   },
 );

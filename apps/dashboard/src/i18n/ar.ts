@@ -220,6 +220,7 @@ export const ar: Translation = {
       settings: 'الإعدادات',
       admin: 'إدارة المنصة',
     },
+    navLabel: 'التنقل الرئيسي',
     collapse: 'طيّ الشريط الجانبي',
     expand: 'توسيع الشريط الجانبي',
     openMenu: 'فتح القائمة',

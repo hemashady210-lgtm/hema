@@ -36,8 +36,12 @@ export function createSupabaseMock() {
         return chain;
       };
     }
-    chain.maybeSingle = () => Promise.resolve(result());
-    chain.single = () => Promise.resolve(result());
+    const one = () => {
+      const r = result();
+      return { ...r, data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data };
+    };
+    chain.maybeSingle = () => Promise.resolve(one());
+    chain.single = () => Promise.resolve(one());
     chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve, reject);
     return chain;
@@ -67,8 +71,14 @@ export function createSupabaseMock() {
     }),
   };
 
+  const rpcData: Record<string, unknown> = {};
   return {
-    client: { auth, from: vi.fn((t: string) => builder(t)) },
+    client: {
+      auth,
+      from: vi.fn((t: string) => builder(t)),
+      rpc: vi.fn((fn: string) => Promise.resolve({ data: rpcData[fn] ?? null, error: null })),
+    },
+    rpcData,
     calls,
     tableData,
     setSession(next: unknown) {

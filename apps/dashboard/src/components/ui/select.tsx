@@ -2,6 +2,7 @@ import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from 'reac
 import { Select as SelectPrimitive } from 'radix-ui';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFieldControl } from './field';
 import { inputClass } from './input';
 
 export const Select = SelectPrimitive.Root;
@@ -11,22 +12,27 @@ export const SelectGroup = SelectPrimitive.Group;
 export const SelectTrigger = forwardRef<
   ElementRef<typeof SelectPrimitive.Trigger>,
   ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      inputClass,
-      'items-center justify-between gap-2 text-start data-[placeholder]:text-text-tertiary',
-      className,
-    )}
-    {...props}
-  >
-    <span className="truncate">{children}</span>
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown aria-hidden className="size-4 shrink-0 text-text-tertiary" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+>(({ className, children, ...props }, ref) => {
+  // Inside a Field (even through a form Controller): label, hint and error stay associated.
+  const field = useFieldControl();
+  return (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        inputClass,
+        'items-center justify-between gap-2 text-start data-[placeholder]:text-text-tertiary',
+        className,
+      )}
+      {...field}
+      {...props}
+    >
+      <span className="truncate">{children}</span>
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown aria-hidden className="size-4 shrink-0 text-text-tertiary" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = 'SelectTrigger';
 
 export const SelectContent = forwardRef<
