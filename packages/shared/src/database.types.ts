@@ -1974,6 +1974,8 @@ export type Database = {
           kind: string;
           paid_at: string | null;
           payment_transaction_id: string | null;
+          period_end: string | null;
+          period_start: string | null;
           status: Database['public']['Enums']['invoice_status'];
           units: number | null;
           updated_at: string;
@@ -1992,6 +1994,8 @@ export type Database = {
           kind?: string;
           paid_at?: string | null;
           payment_transaction_id?: string | null;
+          period_end?: string | null;
+          period_start?: string | null;
           status?: Database['public']['Enums']['invoice_status'];
           units?: number | null;
           updated_at?: string;
@@ -2010,6 +2014,8 @@ export type Database = {
           kind?: string;
           paid_at?: string | null;
           payment_transaction_id?: string | null;
+          period_end?: string | null;
+          period_start?: string | null;
           status?: Database['public']['Enums']['invoice_status'];
           units?: number | null;
           updated_at?: string;
@@ -4194,6 +4200,8 @@ export type Database = {
           id: string;
           logo_path: string | null;
           name: string;
+          purge_after: string | null;
+          retained_billing_identity: Json | null;
           retention_days_override: number | null;
           slug: string;
           status: Database['public']['Enums']['workspace_status'];
@@ -4212,6 +4220,8 @@ export type Database = {
           id?: string;
           logo_path?: string | null;
           name: string;
+          purge_after?: string | null;
+          retained_billing_identity?: Json | null;
           retention_days_override?: number | null;
           slug: string;
           status?: Database['public']['Enums']['workspace_status'];
@@ -4230,6 +4240,8 @@ export type Database = {
           id?: string;
           logo_path?: string | null;
           name?: string;
+          purge_after?: string | null;
+          retained_billing_identity?: Json | null;
           retention_days_override?: number | null;
           slug?: string;
           status?: Database['public']['Enums']['workspace_status'];
@@ -4344,6 +4356,7 @@ export type Database = {
           source_type: Database['public']['Enums']['kb_source_type'];
         }[];
       };
+      purge_deleted_workspaces: { Args: never; Returns: number };
       release_ai_reply: {
         Args: { p_idempotency_key: string };
         Returns: boolean;
@@ -4352,6 +4365,10 @@ export type Database = {
       retry_job: {
         Args: { p_actor_id?: string; p_job_id: number; p_reason?: string };
         Returns: boolean;
+      };
+      soft_delete_workspace: {
+        Args: { p_actor_id?: string; p_workspace_id: string };
+        Returns: Json;
       };
     };
     Enums: {

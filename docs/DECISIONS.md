@@ -2,7 +2,8 @@
 
 Single source of truth for **approved** decisions. All entries below are approved by the project
 owner (sections A–C on 2026-11-25; A15 and proposals P1–P15 on 2026-11-26; section E, the
-reconciliation with `MASTER_PROMPT.md`, on 2026-11-26).
+reconciliation with `MASTER_PROMPT.md`, on 2026-11-26; section F, decisions after the P2 review,
+on 2026-11-26).
 When a doc and this file disagree, this file wins.
 
 ---
@@ -166,3 +167,15 @@ Admin only), `api_keys`, `data_requests`, `platform_settings`.
   and a manual payment awaiting the admin. The PayPal status semantics are **needs verification**.
 - The extra AI tools `confirm_order` (the P15 confirmation step) and `capture_contact_details`
   (fills the CRM).
+
+---
+
+## F. Decisions after the P2 review (owner, 2026-11-26)
+
+| #   | Topic                       | Decision                                                                                                                                                                                                                                                                                                                                                 | Phase / status                                       |
+| --- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| F1  | Billing records on deletion | Workspace deletion is a **soft delete**: the workspace becomes an anonymized tombstone; `billing_events`, `payment_transactions` and `invoices_records` are kept, detached from tenant content, for a configurable retention period (`platform_settings.billing_record_retention_days`, default 5 years). Everything else is purged per retention rules. | Schema done in P2 (migration 0014); deletion job P10 |
+| F2  | Commit history              | Do not rewrite history. Follow the CLAUDE.md trailer rule (no model identifiers) from now on.                                                                                                                                                                                                                                                            | In effect                                            |
+| F3  | Content row limits          | Entitlements (DB rows): FAQs / catalog items / knowledge files — Trial 30 / 50 / 5, Starter 200 / 500 / 20, Growth 1,000 / 2,000 / 100, Enterprise custom (unlimited unless a workspace override sets a limit). Keys `max_faqs`, `max_catalog_items`, `knowledge_files_max`.                                                                             | Done in P2 (migration 0014)                          |
+| F4  | Production project region   | Create the production Supabase project in Frankfurt (A5) in **P17**, not before. The dev project stays in `eu-west-1`.                                                                                                                                                                                                                                   | P17                                                  |
+| F5  | Supabase keys               | Use the new-style keys (publishable `sb_publishable_…` / secret `sb_secret_…`) from **P3** onward; legacy anon / service_role JWT keys only until then.                                                                                                                                                                                                  | P3 onward                                            |

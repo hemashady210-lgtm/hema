@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(47);
+select plan(57);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -200,6 +200,54 @@ update public.subscriptions s set status = 'active', billing_interval = 'month',
  where s.workspace_id = '10000000-0000-0000-0000-00000000000b' and s.status = 'pending_activation';
 select results_eq($$ select reason, included from public.consume_ai_reply('10000000-0000-0000-0000-00000000000b', 'after-upgrade:1') $$,
   $$ values ('ok'::text, 5000) $$, 'after upgrading, replies use the new plan''s period');
+
+-- Content row limits are entitlements (owner decision F3)
+select results_eq(
+  $$ select p.code, pe.key, pe.value #>> '{}' from public.plan_entitlements pe join public.plans p on p.id = pe.plan_id
+     where pe.key in ('max_faqs', 'max_catalog_items', 'knowledge_files_max') order by p.sort_order, pe.key $$,
+  $$ values ('trial'::text, 'knowledge_files_max'::text, '5'::text), ('trial', 'max_catalog_items', '50'), ('trial', 'max_faqs', '30'),
+            ('starter', 'knowledge_files_max', '20'), ('starter', 'max_catalog_items', '500'), ('starter', 'max_faqs', '200'),
+            ('growth', 'knowledge_files_max', '100'), ('growth', 'max_catalog_items', '2000'), ('growth', 'max_faqs', '1000'),
+            ('enterprise', 'knowledge_files_max', null), ('enterprise', 'max_catalog_items', null), ('enterprise', 'max_faqs', null) $$,
+  'content limits per plan (Enterprise unlimited unless overridden)');
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-0000000000c1', 'Content WS', 'ws-content');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, trial_ends_at)
+  select '10000000-0000-0000-0000-0000000000c1', id, 'trialing', 'manual', now() + interval '7 days' from public.plans where code = 'trial';
+insert into public.kb_sources (id, workspace_id, type, title) values
+  ('33000000-0000-0000-0000-0000000000c1', '10000000-0000-0000-0000-0000000000c1', 'faq', 'FAQ'),
+  ('33000000-0000-0000-0000-0000000000c2', '10000000-0000-0000-0000-0000000000c1', 'file', 'Files'),
+  ('33000000-0000-0000-0000-0000000000c3', '10000000-0000-0000-0000-0000000000c1', 'manual', 'Notes');
+select lives_ok($$ insert into public.faqs (workspace_id, source_id, question, answer)
+  select '10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c1', 'q' || g, 'a' from generate_series(1, 30) g $$,
+  'Trial: 30 FAQs');
+select throws_like($$ insert into public.faqs (workspace_id, source_id, question, answer)
+  values ('10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c1', 'q31', 'a') $$,
+  'plan_limit:max_faqs:30', 'Trial: the 31st FAQ is rejected');
+select lives_ok($$ insert into public.catalog_items (workspace_id, name, price_cents)
+  select '10000000-0000-0000-0000-0000000000c1', jsonb_build_object('en', 'item ' || g), 100 from generate_series(1, 50) g $$,
+  'Trial: 50 catalog items');
+select throws_like($$ insert into public.catalog_items (workspace_id, name, price_cents)
+  values ('10000000-0000-0000-0000-0000000000c1', '{"en":"item 51"}', 100) $$,
+  'plan_limit:max_catalog_items:50', 'Trial: the 51st catalog item is rejected');
+select lives_ok($$ insert into public.kb_documents (workspace_id, source_id, storage_path, mime_type, size_bytes)
+  select '10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c2', 'c1/f' || g || '.pdf', 'application/pdf', 1000
+  from generate_series(1, 5) g $$, 'Trial: 5 knowledge files');
+select throws_like($$ insert into public.kb_documents (workspace_id, source_id, storage_path, mime_type, size_bytes)
+  values ('10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c2', 'c1/f6.pdf', 'application/pdf', 1000) $$,
+  'plan_limit:knowledge_files_max:5', 'Trial: the 6th file is rejected');
+select lives_ok($$ insert into public.kb_documents (workspace_id, source_id, body)
+  values ('10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c3', 'manual note') $$,
+  'manual notes do not count as files');
+update public.plan_entitlements set value = '10' where key = 'knowledge_files_max'
+  and plan_id = (select id from public.plans where code = 'trial');
+select throws_like($$ insert into public.kb_documents (workspace_id, source_id, storage_path, mime_type, size_bytes)
+  values ('10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c2', 'c1/big.pdf', 'application/pdf', 11 * 1048576) $$,
+  'plan_limit:knowledge_file_max_mb:10', 'files above the plan size limit are rejected');
+insert into public.workspace_entitlement_overrides (workspace_id, key, value, reason) values
+  ('10000000-0000-0000-0000-0000000000c1', 'max_faqs', '40', 'custom contract');
+select lives_ok($$ insert into public.faqs (workspace_id, source_id, question, answer)
+  values ('10000000-0000-0000-0000-0000000000c1', '33000000-0000-0000-0000-0000000000c1', 'q31', 'a') $$,
+  'a per-workspace override (Enterprise custom) raises the limit');
 
 -- Monthly period bounds (UTC, month-end anchors)
 select results_eq($$ select * from private.monthly_period_bounds('2027-01-31 10:00Z', '2027-02-28 12:00Z') $$,
