@@ -6,7 +6,7 @@
 
 -- -----------------------------------------------------------------------------
 -- profiles (1:1 with auth.users)
--- Row creation on sign-up (auth trigger) is implemented in Phase 02 with auth.
+-- Row creation on sign-up (auth trigger) is implemented in P3 with auth.
 -- -----------------------------------------------------------------------------
 create table public.profiles (
   id            uuid primary key references auth.users (id) on delete cascade,
@@ -40,7 +40,10 @@ create table public.workspaces (
   slug                  text not null unique check (slug ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$'),
   default_locale        text not null default 'ar' check (default_locale in ('ar', 'en')),
   timezone              text not null default 'Asia/Riyadh',
+  -- ISO 3166-1 alpha-2 (kept instead of §6 `country`, E0: unambiguous code).
   country_code          char(2),
+  -- §6 workspaces.category (restaurant, cafe, retail, clinic, ...). Free text, set in onboarding.
+  category              text check (char_length(category) between 1 and 64),
   logo_path             text,
   status                public.workspace_status not null default 'active',
   status_reason         text,
@@ -194,8 +197,8 @@ grant execute on all functions in schema private to authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- RLS
--- Super Admin access goes through the `admin` edge function (service role + audit log),
--- not through client-side RLS bypass policies (proposal P7 / ARCHITECTURE §6).
+-- Super Admin access goes through the `api` function's `admin/*` routes (service role +
+-- audit log, E7), not through client-side RLS bypass policies (proposal P7).
 -- -----------------------------------------------------------------------------
 alter table public.profiles              enable row level security;
 alter table public.platform_admins       enable row level security;
@@ -229,8 +232,10 @@ create policy workspaces_select on public.workspaces for select to authenticated
 create policy workspaces_update on public.workspaces for update to authenticated
   using (private.can_write(id)) with check (private.can_write(id));
 revoke update on public.workspaces from authenticated;
-grant update (name, default_locale, timezone, country_code, logo_path) on public.workspaces
+grant update (name, default_locale, timezone, country_code, category, logo_path) on public.workspaces
   to authenticated;
+-- Plan and trial dates are NOT copied onto workspaces (§6 lists plan_id / trial_ends_at): they
+-- are resolved from the live subscription, the single source of truth (E0, tested suite 02).
 
 -- members: members read; role changes / removal go through the `api` function
 -- (enforces owner rules and the `max_users` entitlement).

@@ -1,6 +1,7 @@
 -- =============================================================================
 -- 0001 · Extensions, schemas, enums, shared helpers
--- Phase 01: written, NOT applied to any Supabase project.
+-- P2: reconciled with DECISIONS §E (E4 grace, E5 channel status + connection_mode,
+-- E9 names, E10 conversation status + handler).
 -- =============================================================================
 
 -- Supabase convention: extensions live in the `extensions` schema.
@@ -8,14 +9,23 @@ create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
 create extension if not exists vector   with schema extensions;   -- pgvector
 create extension if not exists pg_trgm  with schema extensions;
--- pg_cron / pg_net are enabled in Phase 03 when the worker sweep is built (needs verification
--- of availability on the chosen plan/region).
+-- pg_cron / pg_net are enabled in P7 when the scheduler sweep is built.
 
 -- `private` holds SECURITY DEFINER helpers. It is NOT exposed through PostgREST
--- (only `public` and `graphql_public` are in the exposed-schemas list by default).
+-- (only `public` and `graphql_public` are in the exposed-schemas list).
 create schema if not exists private;
 revoke all on schema private from public;
 grant usage on schema private to authenticated, service_role;
+
+-- Secure by default: functions created by this role are not executable by PUBLIC (and, in
+-- `public`, not by anon/authenticated either) until a migration grants it explicitly.
+alter default privileges in schema private revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from anon, authenticated;
+-- `anon` gets no table access by default; public catalogue tables (pricing) grant SELECT
+-- explicitly in 0008. RLS still applies to every table on top of these privileges.
+alter default privileges in schema public revoke all on tables from anon;
+alter default privileges in schema public revoke all on sequences from anon;
 
 -- -----------------------------------------------------------------------------
 -- Enums (stable, low-cardinality vocabularies only; anything plan-related is data)
@@ -26,25 +36,33 @@ create type public.platform_role as enum ('super_admin', 'support');
 create type public.member_status as enum ('active', 'disabled');
 
 create type public.channel_type as enum ('widget', 'whatsapp', 'messenger', 'instagram');
-create type public.channel_status as enum (
-  'not_connected', 'pending', 'in_progress', 'connected', 'error', 'disconnected', 'rejected'
-);
-create type public.connection_method as enum ('automatic', 'manual', 'embedded_signup');
+-- E5. History of every change is kept in channel_connection_events.
+create type public.channel_status as enum ('not_connected', 'pending', 'connected', 'error', 'disabled');
+-- E5. automatic = widget; manual = admin enters credentials; oauth = Embedded Signup v4 /
+-- Facebook Login for Business (built in P13 behind flag `meta_embedded_signup`).
+create type public.connection_mode as enum ('automatic', 'manual', 'oauth');
 create type public.connection_request_status as enum (
   'pending', 'in_progress', 'completed', 'rejected', 'canceled'
 );
+create type public.health_status as enum ('unknown', 'passing', 'failing');
 
-create type public.conversation_status as enum ('open', 'pending_handoff', 'human', 'closed');
+-- E10: status open/pending/closed + handler ai/human.
+create type public.conversation_status as enum ('open', 'pending', 'closed');
+create type public.conversation_handler as enum ('ai', 'human');
 create type public.message_direction as enum ('inbound', 'outbound');
-create type public.sender_type as enum ('contact', 'ai', 'agent', 'system');
+create type public.message_sender as enum ('customer', 'ai', 'agent', 'system');
 create type public.message_content_type as enum (
   'text', 'image', 'audio', 'video', 'file', 'location', 'template', 'interactive', 'system_event'
 );
 create type public.delivery_status as enum ('received', 'queued', 'sent', 'delivered', 'read', 'failed');
 create type public.handoff_status as enum ('requested', 'assigned', 'resolved', 'canceled');
 
-create type public.knowledge_source_type as enum ('business_info', 'qa', 'catalog', 'file', 'url');
+-- §6 kb_sources types. URL crawl is later; it is added with `alter type ... add value 'url'`.
+create type public.kb_source_type as enum ('profile', 'faq', 'catalog', 'policy', 'file', 'manual');
 create type public.processing_status as enum ('pending', 'processing', 'ready', 'failed');
+create type public.policy_type as enum ('delivery', 'refund', 'reservation', 'other');
+
+create type public.bot_status as enum ('draft', 'testing', 'ready', 'active', 'paused');
 
 create type public.order_status as enum (
   'draft', 'pending_confirmation', 'confirmed', 'preparing', 'completed', 'canceled'
@@ -59,18 +77,24 @@ create type public.ai_run_status as enum ('running', 'succeeded', 'failed', 'ref
 
 create type public.billing_interval as enum ('month', 'year', 'one_time');
 create type public.payment_provider as enum ('paypal', 'manual', 'stripe');
+-- E4 adds `grace` (3 days, platform_settings.subscription_grace_days) between past_due and
+-- suspended. `pending_activation` kept (E13).
 create type public.subscription_status as enum (
-  'trialing', 'active', 'past_due', 'suspended', 'canceled', 'expired', 'pending_activation'
+  'trialing', 'active', 'past_due', 'grace', 'suspended', 'canceled', 'expired', 'pending_activation'
 );
 create type public.transaction_type as enum (
   'subscription_payment', 'connection_fee', 'overage', 'refund', 'manual_adjustment'
 );
 create type public.transaction_status as enum ('pending', 'completed', 'failed', 'refunded', 'voided');
 create type public.manual_request_status as enum ('open', 'contacted', 'activated', 'rejected', 'canceled');
+create type public.invoice_status as enum ('draft', 'issued', 'paid', 'void');
 
 create type public.job_status as enum ('queued', 'running', 'succeeded', 'failed', 'dead');
 create type public.event_delivery_status as enum ('pending', 'delivered', 'failed', 'skipped');
 create type public.actor_type as enum ('user', 'platform_admin', 'system', 'api_key', 'ai');
+create type public.webhook_provider as enum ('meta', 'paypal', 'stripe');
+create type public.webhook_status as enum ('received', 'processed', 'failed', 'ignored');
+create type public.feature_flag_scope as enum ('global', 'workspace');
 
 -- -----------------------------------------------------------------------------
 -- updated_at trigger
@@ -99,4 +123,15 @@ as $$
             select 1 from jsonb_each(value) e
             where e.key not in ('ar', 'en') or jsonb_typeof(e.value) <> 'string'
           ));
+$$;
+
+-- Generic guard for append-only tables (audit_logs, billing_events, bot_configs, ...).
+create or replace function private.reject_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception '% is append-only', tg_table_name using errcode = '42501';
+end;
 $$;

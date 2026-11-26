@@ -1,6 +1,7 @@
 -- =============================================================================
 -- 0011 · Storage buckets + policies
--- Object paths always start with the workspace id: `<workspace_id>/<...>`.
+-- Object paths always start with the workspace id: `<workspace_id>/<...>`
+-- (knowledge files: `<workspace_id>/<source_id>/<document_id>/<name>`, see kb_documents).
 -- Uploads use signed upload URLs issued by the `api` function after validating plan,
 -- size and MIME type; clients get read access only. (Whether signed upload URLs bypass
 -- storage RLS entirely = needs verification against current Supabase Storage docs.)

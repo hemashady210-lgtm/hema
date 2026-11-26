@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(18);
+select plan(24);
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-00000000000a', 'a@test.local'),
@@ -92,6 +92,38 @@ select throws_ok(
   $$ insert into public.ai_runs (workspace_id, provider, model, escalated, escalation_reason)
      values ('10000000-0000-0000-0000-00000000000e', 'anthropic', 'm', true, 'bored') $$,
   '23514', null, 'escalation_reason is constrained');
+
+-- Grace (E4): service keeps running during the 3-day grace window.
+insert into public.workspaces (id, name, slug) values ('10000000-0000-0000-0000-00000000000f', 'Grace WS', 'ws-grace');
+insert into public.subscriptions (workspace_id, plan_id, status, provider, billing_interval, current_period_start, grace_ends_at)
+  select '10000000-0000-0000-0000-00000000000f', id, 'grace', 'manual', 'month', now(), now() + interval '3 days'
+  from public.plans where code = 'starter';
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000f', 'grace:1')),
+  'ok', 'grace: AI replies still allowed');
+select throws_ok(
+  $$ insert into public.subscriptions (workspace_id, plan_id, status, provider)
+     select '10000000-0000-0000-0000-00000000000e', id, 'grace', 'manual' from public.plans where code = 'starter' $$,
+  '23514', null, 'grace requires grace_ends_at');
+select is(
+  (select value #>> '{}' from public.platform_settings where key = 'subscription_grace_days'),
+  '3', 'grace period is data (3 days)');
+
+-- Playground runs are never billed (§13).
+insert into public.ai_runs (id, workspace_id, provider, model, is_test) values
+  ('40000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-00000000000a', 'anthropic', 'm', true),
+  ('40000000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-00000000000e', 'anthropic', 'm', false);
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000a', 'test:1',
+     '40000000-0000-0000-0000-00000000000a')),
+  'test_run_not_billable', 'test runs never consume quota');
+select is(
+  (select reason from public.consume_ai_reply('10000000-0000-0000-0000-00000000000a', 'xws:1',
+     '40000000-0000-0000-0000-00000000000e')),
+  'ai_run_not_found', 'an AI run from another workspace cannot be billed here');
+select throws_ok(
+  $$ update public.ai_runs set billed = true where id = '40000000-0000-0000-0000-00000000000a' $$,
+  '23514', null, 'a test run can never be marked billed');
 
 select * from finish();
 rollback;

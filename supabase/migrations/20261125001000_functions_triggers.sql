@@ -5,8 +5,9 @@
 --   * AI-reply metering: consume / release (atomic, idempotent), 80 % / 100 % alerts
 --   * job queue: enqueue / claim (SKIP LOCKED) / complete / fail with backoff
 --   * hybrid retrieval: pgvector + full-text with reciprocal-rank fusion
---   * bookkeeping triggers (order numbers, inbound counters, re-embedding)
+--   * bookkeeping triggers (order numbers, inbound counters, previews, re-embedding)
 -- All functions: SECURITY DEFINER where needed, empty search_path, schema-qualified names.
+-- P2: renamed objects (E9), `grace` (E4), channel statuses (E5), test runs never billed.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -18,7 +19,7 @@ language sql stable security definer set search_path = ''
 as $$
   select s.* from public.subscriptions s
   where s.workspace_id = p_workspace_id
-    and s.status in ('trialing', 'active', 'past_due', 'suspended', 'pending_activation')
+    and s.status in ('trialing', 'active', 'past_due', 'grace', 'suspended', 'pending_activation')
   order by s.created_at desc
   limit 1;
 $$;
@@ -172,9 +173,9 @@ create trigger branches_enforce_limit before insert on public.branches
   for each row execute function private.enforce_branch_limit();
 
 -- Channel types allowed by plan + Meta channel count (proposal P13).
--- "Occupying" statuses: anything except not_connected / disconnected / rejected.
+-- "Occupying" statuses: anything except not_connected (E5), plus open requests.
 create or replace function private.assert_channel_allowed(
-  p_workspace_id uuid, p_channel_type public.channel_type, p_exclude_connection uuid
+  p_workspace_id uuid, p_channel_type public.channel_type, p_exclude_channel uuid
 )
 returns void
 language plpgsql stable security definer set search_path = ''
@@ -187,33 +188,33 @@ begin
   end if;
   if p_channel_type <> 'widget' then
     perform private.assert_limit(p_workspace_id, 'max_meta_channels',
-      (select count(*) from public.channel_connections c
+      (select count(*) from public.channels c
        where c.workspace_id = p_workspace_id
          and c.channel_type <> 'widget'
-         and c.status not in ('not_connected', 'disconnected', 'rejected')
-         and c.id is distinct from p_exclude_connection)
+         and c.status <> 'not_connected'
+         and c.id is distinct from p_exclude_channel)
       + (select count(*) from public.channel_connection_requests r
          where r.workspace_id = p_workspace_id
            and r.status in ('pending', 'in_progress')
-           and r.channel_connection_id is null));
+           and r.channel_id is null));
   end if;
 end;
 $$;
 
-create or replace function private.enforce_channel_connection_limit()
+create or replace function private.enforce_channel_limit()
 returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 begin
-  if new.status not in ('not_connected', 'disconnected', 'rejected')
-     and (tg_op = 'INSERT' or old.status in ('not_connected', 'disconnected', 'rejected')) then
+  if new.status <> 'not_connected'
+     and (tg_op = 'INSERT' or old.status = 'not_connected') then
     perform private.assert_channel_allowed(new.workspace_id, new.channel_type, new.id);
   end if;
   return new;
 end;
 $$;
-create trigger channel_connections_enforce_limit before insert or update on public.channel_connections
-  for each row execute function private.enforce_channel_connection_limit();
+create trigger channels_enforce_limit before insert or update on public.channels
+  for each row execute function private.enforce_channel_limit();
 
 create or replace function private.enforce_channel_request_limit()
 returns trigger
@@ -339,8 +340,21 @@ begin
     return;
   end if;
 
+  -- Playground / readiness runs are never billed (§13); the run must belong to the workspace.
+  if p_ai_run_id is not null then
+    if not exists (select 1 from public.ai_runs r where r.id = p_ai_run_id and r.workspace_id = p_workspace_id) then
+      return query select false, 'ai_run_not_found'::text, false, null::uuid, null::integer, null::integer;
+      return;
+    end if;
+    if exists (select 1 from public.ai_runs r where r.id = p_ai_run_id and r.is_test) then
+      return query select false, 'test_run_not_billable'::text, false, null::uuid, null::integer, null::integer;
+      return;
+    end if;
+  end if;
+
   v_sub := private.live_subscription(p_workspace_id);
-  if v_sub.id is null or v_sub.status not in ('trialing', 'active', 'past_due') then
+  -- `grace` (E4) keeps service running until suspension.
+  if v_sub.id is null or v_sub.status not in ('trialing', 'active', 'past_due', 'grace') then
     return query select false, 'no_active_subscription'::text, false, null::uuid, null::integer, null::integer;
     return;
   end if;
@@ -537,7 +551,7 @@ grant execute on function public.requeue_stuck_jobs() to service_role;
 -- Hybrid retrieval (vector + full-text, reciprocal-rank fusion, k = 60).
 -- Always scoped to one workspace; bot-specific + workspace-shared chunks.
 -- -----------------------------------------------------------------------------
-create or replace function public.match_knowledge_chunks(
+create or replace function public.match_kb_chunks(
   p_workspace_id uuid,
   p_bot_id uuid,
   p_query_embedding extensions.vector(1024),
@@ -546,14 +560,14 @@ create or replace function public.match_knowledge_chunks(
   p_candidates integer default 40
 )
 returns table (
-  id uuid, source_id uuid, source_type public.knowledge_source_type, ref_id uuid,
+  id uuid, source_id uuid, document_id uuid, source_type public.kb_source_type, ref_id uuid,
   content text, language text, metadata jsonb,
   similarity double precision, rrf_score double precision
 )
 language sql stable security definer set search_path = ''
 as $$
   with scope as (
-    select c.* from public.knowledge_chunks c
+    select c.* from public.kb_chunks c
     where c.workspace_id = p_workspace_id
       and (c.bot_id is null or c.bot_id = p_bot_id)
   ),
@@ -580,15 +594,15 @@ as $$
            coalesce(1.0 / (60 + v.rnk), 0) + coalesce(1.0 / (60 + l.rnk), 0) as rrf_score
     from vec v full outer join lex l on l.id = v.id
   )
-  select c.id, c.source_id, c.source_type, c.ref_id, c.content, c.language, c.metadata,
+  select c.id, c.source_id, c.document_id, c.source_type, c.ref_id, c.content, c.language, c.metadata,
          f.similarity, f.rrf_score
-  from fused f join public.knowledge_chunks c on c.id = f.id
+  from fused f join public.kb_chunks c on c.id = f.id
   order by f.rrf_score desc
   limit greatest(1, least(p_match_count, 20));
 $$;
-revoke all on function public.match_knowledge_chunks(uuid, uuid, extensions.vector, text, integer, integer)
+revoke all on function public.match_kb_chunks(uuid, uuid, extensions.vector, text, integer, integer)
   from public, anon, authenticated;
-grant execute on function public.match_knowledge_chunks(uuid, uuid, extensions.vector, text, integer, integer)
+grant execute on function public.match_kb_chunks(uuid, uuid, extensions.vector, text, integer, integer)
   to service_role;
 
 -- -----------------------------------------------------------------------------
@@ -611,7 +625,7 @@ create trigger orders_assign_number before insert on public.orders
   for each row when (new.order_number is null)
   execute function private.assign_order_number();
 
--- Conversation timestamps + inbound analytics counter (inbound is free — decision B).
+-- Conversation timestamps + preview + inbound analytics counter (inbound is free — B).
 create or replace function private.on_message_inserted()
 returns trigger
 language plpgsql security definer set search_path = ''
@@ -619,10 +633,14 @@ as $$
 begin
   update public.conversations c
      set last_message_at = new.created_at,
+         last_message_preview = case
+           when new.content is not null and new.sender <> 'system'
+             then left(regexp_replace(new.content, '\s+', ' ', 'g'), 280)
+           else c.last_message_preview end,
          last_inbound_at = case when new.direction = 'inbound' then new.created_at else c.last_inbound_at end
    where c.id = new.conversation_id;
 
-  if new.direction = 'inbound' then
+  if new.direction = 'inbound' and not new.is_test then
     update public.usage_periods p
        set inbound_messages = p.inbound_messages + 1
      where p.workspace_id = new.workspace_id
@@ -652,12 +670,33 @@ begin
   return null;
 end;
 $$;
-create trigger knowledge_qa_reindex after insert or update or delete on public.knowledge_qa
-  for each row execute function private.enqueue_reindex('qa');
+-- Kinds = kb_source_type values of the structured sources.
+create trigger faqs_reindex after insert or update or delete on public.faqs
+  for each row execute function private.enqueue_reindex('faq');
 create trigger catalog_items_reindex after insert or update or delete on public.catalog_items
   for each row execute function private.enqueue_reindex('catalog');
 create trigger business_profiles_reindex after insert or update or delete on public.business_profiles
-  for each row execute function private.enqueue_reindex('business_info');
+  for each row execute function private.enqueue_reindex('profile');
+
+-- A conversation can only be assigned to an active owner/admin/agent of its workspace.
+create or replace function private.check_conversation_assignee()
+returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if new.assigned_to is not null
+     and (tg_op = 'INSERT' or new.assigned_to is distinct from old.assigned_to)
+     and not exists (
+       select 1 from public.workspace_members m
+       where m.workspace_id = new.workspace_id and m.user_id = new.assigned_to
+         and m.status = 'active' and m.role in ('owner', 'admin', 'agent')) then
+    raise exception 'assignee is not an active agent of this workspace' using errcode = '23503';
+  end if;
+  return new;
+end;
+$$;
+create trigger conversations_check_assignee before insert or update of assigned_to on public.conversations
+  for each row execute function private.check_conversation_assignee();
 
 -- Lock down private helpers: clients only need the RLS helpers (used inside policies).
 revoke all on all functions in schema private from public, anon, authenticated;
