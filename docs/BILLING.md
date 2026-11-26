@@ -1,7 +1,8 @@
 # Billing Design
 
-Approved inputs: decisions A12, B, C5–C8 in [`DECISIONS.md`](./DECISIONS.md). Schema:
-`supabase/migrations/…000800_billing_plans_usage.sql`, functions in `…001000`, seed in `…001200`.
+Approved inputs: decisions A12, B, C5–C8, E4, E13 in [`DECISIONS.md`](./DECISIONS.md). Schema:
+`supabase/migrations/…000800_billing_plans_usage.sql`, functions in `…001000`, seed in `…001200`
+(applied to the dev project in P2; billing flows are built in P12).
 PayPal API details are **needs verification** throughout; the design only depends on capabilities
 PayPal is expected to offer (hosted subscription approval, webhooks, one-time capture, refunds).
 
@@ -11,11 +12,13 @@ PayPal is expected to offer (hosted subscription approval, webhooks, one-time ca
    `plan_entitlements`, `one_time_products`; Super Admin edits them. No plan code in app logic —
    code asks for entitlements by key.
 2. **Billable unit = AI-generated reply.** Inbound messages, human replies, fallback messages,
-   test-panel replies are never billed.
+   playground replies are never billed — enforced in the database: `consume_ai_reply` refuses
+   `is_test` AI runs and a test run can never be marked `billed` (suite 02).
 3. **The database enforces limits** (triggers + `consume_ai_reply`), so every path is covered.
 4. **Provider-agnostic.** PayPal and `manual` today, Stripe later, behind one interface.
-5. **Full history.** Every money movement is a `billing_transactions` row (C8); VAT and PDF
-   invoices deferred.
+5. **Full history.** Every money movement is a `payment_transactions` row (C8); every billing state
+   change is an append-only `billing_events` row (§14); manual overage invoices are
+   `invoices_records`. VAT and PDF invoices deferred.
 
 ## 2. Plan catalog (seeded)
 
@@ -80,7 +83,9 @@ stateDiagram-v2
   expired --> pending_activation: upgrade from read-only dashboard
   active --> past_due: payment failed
   past_due --> active: payment succeeds (retry)
-  past_due --> suspended: grace elapsed (provider suspends / admin)
+  past_due --> grace: provider retries exhausted (grace_ends_at = now + subscription_grace_days)
+  grace --> active: payment succeeds
+  grace --> suspended: grace_ends_at passed (scheduler)
   suspended --> active: paid / admin reactivates
   active --> canceled: cancel at period end → period ends
   suspended --> canceled
@@ -88,9 +93,12 @@ stateDiagram-v2
   expired --> [*]: 30 days later → workspace deletion scheduled
 ```
 
-Workspace status follows: `trialing/active/past_due` → workspace `active`;
-`expired/suspended/canceled` → workspace `read_only` (dashboard visible, writes blocked by
-`private.can_write`, AI stops, fallback messages sent).
+Workspace status follows: `trialing/active/past_due/grace` → workspace `active` (AI keeps
+replying; `consume_ai_reply` allows `grace`, suite 02); `expired/suspended/canceled` → workspace
+`read_only` (dashboard visible, writes blocked by `private.can_write`, AI stops, fallback messages
+sent). `grace` (E4) lasts `platform_settings.subscription_grace_days` (seeded 3); the schema
+requires `grace_ends_at` whenever the status is `grace`. Every transition writes a
+`billing_events` row (`from_status`, `to_status`, `source`, actor, webhook event).
 
 ## 5. PayPal flows (needs verification of API names/fields)
 
@@ -104,22 +112,25 @@ pending_activation, provider = paypal, provider_subscription_id)`; returns `appr
    _real_ status, polling until the webhook arrives).
 4. Webhook _subscription activated_ → previous live subscription (trial) is ended, new one
    `active`, `current_period_start/end` set from PayPal, new usage period opened, workspace
-   `active`, `billing_transactions` row on the first _payment completed_ event.
+   `active`, `payment_transactions` row on the first _payment completed_ event.
 
 ### 5.2 Webhook → state mapping
 
 | PayPal event (names to verify)   | Effect                                                                              |
 | -------------------------------- | ----------------------------------------------------------------------------------- |
 | subscription activated           | `pending_activation → active`; open usage period; event `subscription.activated`    |
-| payment sale/capture completed   | `billing_transactions(subscription_payment, completed)`; advance `current_period_*` |
+| payment sale/capture completed   | `payment_transactions(subscription_payment, completed)`; advance `current_period_*` |
 | payment failed                   | `active → past_due`; email owner; event for n8n                                     |
+| retries exhausted                | `past_due → grace` (+ `grace_ends_at`); email owner                                 |
 | subscription suspended           | `→ suspended`; workspace `read_only`                                                |
 | subscription cancelled / expired | `→ canceled` (at period end if scheduled); workspace `read_only` at end             |
-| capture refunded                 | `billing_transactions(refund)`; connection-fee status `refunded`                    |
+| capture refunded                 | `payment_transactions(refund)`; connection-fee status `refunded`                    |
 
-All events are inserted into `payment_webhook_events` first (unique `(provider, event_id)`),
+All events are inserted into the generic `webhook_events` inbox first (unique
+`(provider, event_id)`, `status received → processed | failed | ignored`, `attempts`),
 processed idempotently, and out-of-order events are handled by comparing PayPal's resource
-state, not by trusting arrival order.
+state, not by trusting arrival order. Each resulting state change writes a `billing_events` row
+pointing at the webhook event.
 
 ### 5.3 Plan changes
 
@@ -141,10 +152,12 @@ state, not by trusting arrival order.
 3. Super Admin contacts the customer (status `contacted`), receives payment off-platform.
 4. Admin activates: `POST /admin/v1/workspaces/{ws}/subscriptions/activate` with plan,
    period, optional custom amount, and transaction details → `subscriptions(provider = manual,
-status = active, activated_by)`, `billing_transactions(provider = manual, completed)`,
-   request `activated`, audit log, owner notified.
+status = active, activated_by)`, `payment_transactions(provider = manual, completed)`,
+   `billing_events(subscription.manual_activated, source = admin)`, request `activated`, audit
+   log, owner notified.
 5. Renewal: a `subscription.renewal_due` event 7 days before `current_period_end` reminds admin
-   and customer; if not renewed by period end → `suspended` (workspace read-only).
+   and customer; if not renewed by period end → `past_due` → `grace` → `suspended` (workspace
+   read-only).
 
 Enterprise contracts use the same path with `custom_amount_cents` and entitlement overrides.
 
@@ -161,8 +174,9 @@ Enterprise contracts use the same path with `custom_amount_cents` and entitlemen
   banner. For Starter, 100 % = hard stop with upgrade prompt; for Growth, 100 % = overage starts.
 - **Overage (Growth/Enterprise)**: counted in `usage_periods.overage_replies`. At period close,
   `usage_period_rollover` computes `ceil(overage_replies / overage_unit_size) ×
-overage_unit_price_cents` and queues it for Super Admin, who creates a manual invoice →
-  `billing_transactions(type = overage, provider = manual, status = pending → completed)` (C5).
+overage_unit_price_cents` and queues it for Super Admin, who issues a manual invoice → `invoices_records(kind = overage,
+status draft → issued → paid)` (one live overage invoice per usage period, unique index);
+  payment is recorded as `payment_transactions(type = overage, provider = manual)` (C5).
   Automated overage charging is a later phase.
 - Inbound messages counted in `usage_periods.inbound_messages` for analytics only.
 
@@ -179,7 +193,7 @@ overage_unit_price_cents` and queues it for Super Admin, who creates a manual in
 ## 9. One-time Meta connection fee ($49 / channel, C6)
 
 1. Customer submits a channel connection request and chooses PayPal or manual.
-2. PayPal: one-time checkout (`reference_id = request_id`) → capture → `billing_transactions
+2. PayPal: one-time checkout (`reference_id = request_id`) → capture → `payment_transactions
 (connection_fee, completed)`, `channel_connection_requests.fee_status = paid`. Manual: a
    `manual_payment_requests` row linked to the request; admin records the payment.
 3. Admin starts work only when `fee_status ∈ {paid, waived}` (admin may waive).
@@ -190,7 +204,8 @@ refunded`, customer notified.
 ## 10. Billing UI states (real data only)
 
 The dashboard billing page reads `GET /billing` and shows exactly what the DB says: plan,
-status badge (`Trial · 3 days left`, `Active`, `Payment failed`, `Read-only`), usage meter
+status badge (`Trial · 3 days left`, `Active`, `Payment failed`, `Grace · 2 days left`,
+`Read-only`), usage meter
 (used / included, overage count), next renewal date, history table. No optimistic "active"
 before the webhook confirms.
 

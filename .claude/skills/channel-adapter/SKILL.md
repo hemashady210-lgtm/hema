@@ -6,30 +6,29 @@ description: Build or review a messaging channel adapter (Website Widget, WhatsA
 # Channel adapter
 
 Source of truth: `docs/ARCHITECTURE.md §8`, `docs/INTEGRATIONS.md` (status machines, adapter
-contract, platform specifics table), `docs/DECISIONS.md` (A14). Schema: `channel_connections`,
-`channel_connection_requests`, `channel_connection_events`, `widget_configs`.
+contract, platform specifics table), `docs/DECISIONS.md` (A14). Schema: `channels`,
+`channel_credentials` (service role only), `channel_connection_requests`,
+`channel_connection_events`, `widget_settings`, `whatsapp_templates`.
 
 ## Contract (do not change without updating ARCHITECTURE.md)
 
 ```ts
 interface ChannelAdapter {
   readonly type: 'widget' | 'whatsapp' | 'messenger' | 'instagram';
-  parseWebhook(req: Request, rawBody: string): Promise<NormalizedInboundEvent[]>; // verify + normalize
-  send(
-    conn: ChannelConnection,
-    msg: OutboundMessage,
-    creds: ChannelCredentials,
-  ): Promise<SendResult>;
-  capabilities(conn: ChannelConnection): ChannelCapabilities;
+  verifyWebhook(req: Request, rawBody: string): Promise<boolean>;
+  parseInbound(rawBody: string): Promise<NormalizedInboundEvent[]>;
+  send(channel: Channel, msg: OutboundMessage, creds: ChannelCredentials): Promise<SendResult>;
+  healthCheck(channel: Channel, creds: ChannelCredentials): Promise<HealthCheckResult>;
 }
 interface ConnectionProvisioner {
-  readonly method: 'automatic' | 'manual' | 'embedded_signup';
+  readonly mode: 'automatic' | 'manual' | 'oauth';
   provision(input: unknown): Promise<ProvisionResult>;
 }
 ```
 
-Manual connection and (future) Embedded Signup produce the **same** `channel_connections` row —
-only `connection_method` differs — so adapters and the message path never fork on it.
+Manual connection and (P13, flagged) Embedded Signup / Facebook Login produce the **same**
+`channels` row — only `connection_mode` differs — so adapters and the message path never fork on
+it. Channel statuses: `not_connected / pending / connected / error / disabled` (E5).
 
 ## Rules
 
@@ -45,9 +44,10 @@ only `connection_method` differs — so adapters and the message path never fork
 5. **Unknown event types never throw** — log them as `unsupported` and acknowledge.
 6. **Errors map to** `retryable | permanent | auth_error`. `auth_error` moves the connection to
    `error` (recorded as a `channel_connection_events` row). Never set `connected` unless a live
-   health check passed.
-7. **Credentials** are read server-side from Vault via `credentials_secret_id`; never logged,
-   never returned to the client, never in `NormalizedInboundEvent`.
+   health check passed — the database enforces it (`channels_connected_requires_health`).
+7. **Credentials** are read server-side (service role) from Vault via
+   `channel_credentials.vault_secret_id`; never logged, never returned to the client, never in
+   `NormalizedInboundEvent`.
 8. **Never invent Meta behavior.** Graph API version comes from `META_GRAPH_API_VERSION`. Field
    names, permissions, messaging-window rules, template requirements and Embedded Signup steps
    must be checked against current official Meta docs; anything unconfirmed is marked

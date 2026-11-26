@@ -58,6 +58,8 @@ pgvector, Auth, Storage, Realtime, Vault, Edge Functions) · Claude (generation)
 | [`INTEGRATIONS.md`](./INTEGRATIONS.md)                 | Connect section, manual Meta flow, adapters, Embedded Signup path          |
 | [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md)               | Visual language, tokens, RTL rules, components                             |
 | [`ROADMAP.md`](./ROADMAP.md)                           | Phases P1–P17 with exit criteria                                           |
+| [`SECURITY.md`](./SECURITY.md)                         | Threat model, isolation controls, credentials, P2 findings                 |
+| [`DEPLOYMENT.md`](./DEPLOYMENT.md)                     | Environments, migration policy, dev-project runner, CI                     |
 | [`TESTING.md`](./TESTING.md)                           | Test layers, rules, AI gates                                               |
 | [`RISKS.md`](./RISKS.md)                               | Risks, scores, mitigations                                                 |
 | [`DEVELOPMENT_PROGRESS.md`](./DEVELOPMENT_PROGRESS.md) | What's done, what's next                                                   |

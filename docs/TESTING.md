@@ -6,25 +6,41 @@
 | ------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | Database      | **pgTAP** via `supabase test db` (`supabase/tests/database/*.test.sql`)           | RLS isolation per table, column grants, plan-limit triggers, metering (`consume/release`), queue RPCs, retrieval function, seed integrity | every PR (CI)                           |
 | Unit          | **Vitest** (packages, dashboard logic), **Deno test** (edge functions, `_shared`) | prompt builder, tool validators, price computation, language detection, entitlement mapping, webhook normalizers, zod schemas             | every PR                                |
-| Integration   | Deno tests against the local Supabase stack                                       | edge function routes with real DB + RLS; webhook signature verification with recorded fixtures; job lifecycle                             | every PR (Phase 02+)                    |
+| Integration   | Deno tests against the local Supabase stack                                       | edge function routes with real DB + RLS; webhook signature verification with recorded fixtures; job lifecycle                             | every PR (P3+)                          |
 | Contract      | recorded vendor fixtures (Meta, PayPal, Anthropic, Voyage)                        | parsing/normalization of real payloads; no live calls in CI                                                                               | every PR                                |
 | E2E           | **Playwright** (Chromium + WebKit), both `ar`/RTL and `en`/LTR                    | sign-up → workspace, KB, widget chat, billing sandbox flows, admin flows                                                                  | PR (smoke) + nightly (full)             |
 | Accessibility | `@axe-core/playwright`                                                            | every E2E page in both directions                                                                                                         | with E2E                                |
 | Visual        | Playwright screenshots                                                            | key screens × {dark, light} × {ar, en}                                                                                                    | nightly                                 |
 | AI quality    | eval harness (`packages/ai-engine/evals`)                                         | golden set (AI_ENGINE §10)                                                                                                                | on prompt/model change + nightly sample |
-| Load          | k6 (or similar)                                                                   | widget message throughput, queue latency, webhook bursts                                                                                  | before launch (Phase 09)                |
+| Load          | k6 (or similar)                                                                   | widget message throughput, queue latency, webhook bursts                                                                                  | before launch (P16)                     |
 
-## 2. Phase 01 status
+## 2. Database suites (P2)
 
-- `supabase/tests/database/01_rls_tenant_isolation.test.sql` — 14 assertions.
-- `supabase/tests/database/02_plan_limits_metering.test.sql` — 18 assertions (incl. model routing profiles).
-- Validated on a throwaway local Postgres 16 + pgvector with stub `auth`/`storage` schemas:
-  **32/32 passed**. Must be re-run against the real Supabase local stack in Phase 02.
+| Suite                        | Assertions | What it proves                                                                                                                                                                                                               |
+| ---------------------------- | ---------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `01_rls_tenant_isolation`    |         14 | basic isolation, service-only tables, client-unwritable columns, service-only RPCs, public pricing                                                                                                                           |
+| `02_plan_limits_metering`    |         24 | plan limits + feature gates, trial hard stop, 80/100 % alerts, idempotent consume/release, model routing, `grace`, test runs never billed                                                                                    |
+| `03_schema_conventions`      |         16 | catalog-wide: RLS on every table + partition, `workspace_id` NOT NULL + index, service-only tables, `anon` scope, policy shape, function grants + `search_path`                                                              |
+| `04_role_matrix`             |        251 | **every tenant table × select/insert/update/delete × owner/admin/agent/viewer/other tenant/anon**, read-only workspace, profiles; fails if a table is missing                                                                |
+| `05_cross_tenant_references` |         18 | composite FKs block cross-tenant references from any role; retrieval never crosses tenants                                                                                                                                   |
+| `06_channel_credentials`     |         14 | credentials unreadable by clients, Vault round trip, no orphaned Vault secrets                                                                                                                                               |
+| `07_jobs_retry`              |         16 | queue idempotency, backoff, dead-letter, `retry_job` + audit, stuck-job sweep, RPCs service-only                                                                                                                             |
+| `08_table_behaviour`         |         41 | E4/E5/E10 vocabularies, bot config versions, server-only bot columns, flags, partitions, append-only + workspace deletion, previews, assignee rule, channel health constraint, order totals, categories, hours, KB documents |
+
+Total **394**. Where they run (all green on 2026-11-26):
+
+1. **Supabase dev project** — `pnpm db:remote:test` (Management API; each file runs in a
+   transaction that is always aborted, so no fixture persists).
+2. **CI** — job `db`: `supabase db start` + `supabase test db` + `supabase db lint` on the
+   Supabase CLI local stack (CLI 2.122.1, Postgres 17).
+3. **Local harness** — `pnpm db:test:local` on plain Postgres + pgvector + pgTAP with stub
+   `auth` / `storage` / `vault` schemas (fast loop; not authoritative).
 
 ## 3. Mandatory test rules
 
-1. **Every new table** ships with RLS tests: member of A cannot read/write B; each role's
-   allowed/denied operations; anonymous access denied unless intended.
+1. **Every new table** ships with RLS tests: add it to the role matrix (`04_role_matrix`, which
+   fails otherwise) and, if service-only, to the list in `03_schema_conventions`; composite FKs
+   to parents get a case in `05`.
 2. **Every plan limit or feature gate** ships with a trigger test (allowed at limit − 1, rejected
    at limit, override raises the limit).
 3. **Every money or usage path** is tested for idempotency (replay the same webhook/job twice).
@@ -41,7 +57,7 @@
 - Snapshot tests for mixed content: Arabic message containing an English product name, phone
   number and price.
 
-## 5. AI evaluation gates (from Phase 04)
+## 5. AI evaluation gates (from P6)
 
 | Metric                                                        | Gate    |
 | ------------------------------------------------------------- | ------- |
@@ -59,6 +75,8 @@ any dialect switches the `standard` profile's `generation_model` in the DB and t
 
 ## 6. Test data
 
-- Seed script (Phase 02) creates demo workspaces per plan with realistic bilingual businesses
-  (restaurant in Riyadh, clinic in Cairo, store in Dubai) — fictional names only.
+- `supabase/seed.sql` (P2) creates a bilingual demo restaurant (Riyadh) for the local stack and
+  CI only — never the dev or production project. More verticals (clinic in Cairo, store in
+  Dubai) are added with the features that need them. Fictional names only. pgTAP fixtures use
+  their own ids and never depend on seed rows.
 - No production data in non-production environments.

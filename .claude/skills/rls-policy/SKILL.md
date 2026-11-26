@@ -31,14 +31,14 @@ Source of truth: `docs/DECISIONS.md`, `docs/DATABASE.md`, migration
 
 ## Choose the access pattern
 
-| Pattern                                                                                                                     | Policies                                                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Member-readable, owner/admin-writable (config tables: bots, catalog, KB)                                                    | `select using (private.is_workspace_member(workspace_id))` + `for all using/with check (private.can_write(workspace_id))` |
-| Agent-workable (conversations, orders, reservations)                                                                        | write policy uses `private.can_write(workspace_id, array['owner','admin','agent']::public.workspace_role[])`              |
-| Read-only to clients, written by edge functions (channel_connections, connection requests, messages)                        | `select` policy only; no insert/update/delete policies. Writes use service role.                                          |
-| **Service-role only** (credentials, webhook inboxes, jobs, usage records, billing writes, ai_runs writes, knowledge_chunks) | enable RLS, **no policies at all**, and `revoke all on public.<t> from anon, authenticated;`                              |
-| Column-restricted update                                                                                                    | policy for `update`, then `revoke update on t from authenticated; grant update (col_a, col_b) on t to authenticated;`     |
-| Hide internal rows                                                                                                          | add a predicate, e.g. `using (private.is_workspace_member(workspace_id) and not is_internal)`                             |
+| Pattern                                                                                                         | Policies                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Member-readable, owner/admin-writable (config tables: bots, catalog, KB)                                        | `select using (private.is_workspace_member(workspace_id))` + `for all using/with check (private.can_write(workspace_id))` |
+| Agent-workable (conversations, orders, reservations)                                                            | write policy uses `private.can_write(workspace_id, array['owner','admin','agent']::public.workspace_role[])`              |
+| Read-only to clients, written by edge functions (channels, connection requests, messages)                       | `select` policy only; no insert/update/delete policies. Writes use service role.                                          |
+| **Service-role only** (channel_credentials, webhook_events, jobs, usage_events, analytics_events, kb_chunks, …) | enable RLS, **no policies at all**, and `revoke all on public.<t> from anon, authenticated;`                              |
+| Column-restricted update                                                                                        | policy for `update`, then `revoke update on t from authenticated; grant update (col_a, col_b) on t to authenticated;`     |
+| Hide internal rows                                                                                              | add a predicate, e.g. `using (private.is_workspace_member(workspace_id) and not is_internal)`                             |
 
 Plan limits are **not** RLS: they are triggers/functions that raise
 `plan_limit:<key>:<limit>` or `plan_feature:<key>`, using `private.get_entitlement`.
@@ -59,7 +59,10 @@ another workspace.
 
 ## Required pgTAP coverage (add to `supabase/tests/database/`)
 
-For every new table, assert with two workspaces A and B (fixtures as in `01_…test.sql`):
+For every new table: **add a row to the matrix in `04_role_matrix.test.sql`** (expected allowed
+roles for select / insert / update / delete; the suite fails if a tenant table is missing), add it
+to the service-only list in `03_schema_conventions.test.sql` if no client may touch it, and add a
+composite-FK case to `05_cross_tenant_references.test.sql`. The matrix covers:
 
 - user A `select` sees only A rows (and 0 rows for service-role-only tables);
 - cross-tenant `update`/`delete` affects 0 rows;
@@ -67,7 +70,8 @@ For every new table, assert with two workspaces A and B (fixtures as in `01_…t
 - viewer/agent cannot do what their role forbids;
 - writes blocked when the workspace is not `active` (if `can_write` used).
 
-Run with `supabase test db` (needs Docker). If it cannot run in the session, say so and mark
+Run with `supabase test db` (needs Docker), `pnpm db:test:local` (plain Postgres harness) or
+`pnpm db:remote:test` (dev project, see `docs/DEPLOYMENT.md`). If it cannot run in the session, say so and mark
 the tests **UNVERIFIED** in `docs/DEVELOPMENT_PROGRESS.md`.
 
 ## Review checklist

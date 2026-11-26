@@ -91,7 +91,9 @@ P9 is superseded by A15 (model routing); its row is kept for history.
 existing tested Phase 01 work is equal or better. In that case the Phase 01 work stays,
 `MASTER_PROMPT.md` is updated to match, and the reason is noted. CLAUDE.md non-negotiables still
 win over both. This section resolves `GAP_ANALYSIS.md` §1. Schema changes listed here are made
-in **P2** migrations. Nothing has been migrated yet.
+in **P2** migrations. **Status (2026-11-26): all P2 schema items are applied to the Supabase dev
+project and tested** (DATABASE.md, TESTING.md §2); the column-level rename list was approved with
+the P2 plan and is recorded in DATABASE.md §6.
 
 | #   | Topic                              | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Phase                              |
 | --- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
@@ -131,7 +133,7 @@ carries over unchanged.
 | `business_profiles.policies`                                    | `policies` (type delivery/refund/reservation/other) |                                                                                                                                                            |
 | `usage_periods.overage_transaction_id`                          | `invoices_records`                                  | Manual overage invoices with their own status                                                                                                              |
 | Settings inline on `bots`                                       | `bot_configs` (versioned)                           | `bots` gains `status` (draft/testing/ready/active/paused) and `readiness_score`                                                                            |
-| Other column names                                              | As named in §6                                      | Full column-level list is part of the P2 plan for approval                                                                                                 |
+| Other column names                                              | As named in §6                                      | Column-level list approved with the P2 plan (owner, 2026-11-26); applied — see DATABASE.md §6                                                              |
 
 **Kept, because renaming a tested object adds risk.** MASTER_PROMPT has been updated to match.
 

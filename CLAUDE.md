@@ -6,7 +6,7 @@ Guidance for AI assistants (and humans) working in this repository.
 
 1. Read `docs/DECISIONS.md` (source of truth) and `docs/DEVELOPMENT_PROGRESS.md` (current phase).
 2. Read the doc for the area you touch: `ARCHITECTURE`, `DATABASE`, `API`, `AI_ENGINE`,
-   `BILLING`, `INTEGRATIONS`, `DESIGN_SYSTEM` (all in `docs/`).
+   `BILLING`, `INTEGRATIONS`, `SECURITY`, `DEPLOYMENT`, `TESTING`, `DESIGN_SYSTEM` (all in `docs/`).
 3. Work only within the **current approved phase** (see `docs/ROADMAP.md`). Do not start the next
    phase without explicit owner approval.
 
@@ -54,6 +54,8 @@ pnpm test            # package tests (from Phase 02)
 supabase start       # local stack (Docker) — Phase 02+
 supabase db reset    # apply migrations + seed locally
 supabase test db     # pgTAP suites
+pnpm db:test:local   # pgTAP on plain Postgres (no Docker) — approximation
+pnpm db:remote:test  # pgTAP on the Supabase dev project (docs/DEPLOYMENT.md)
 ```
 
 ## Conventions

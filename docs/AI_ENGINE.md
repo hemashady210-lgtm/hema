@@ -1,8 +1,9 @@
 # AI Engine Design
 
-Package: `packages/ai-engine` (Deno + browser compatible, fetch-only). Runs inside the `worker`
-Edge Function. Generation = Claude (A7) behind `GenerationProvider`; embeddings = Voyage AI (A8)
-behind `EmbeddingProvider`. No code in Phase 01 — this document is the contract.
+Package: `packages/ai-engine` (Deno + browser compatible, fetch-only). Runs inside the `ai-worker`
+Edge Function (E7); embeddings for ingestion run in `kb-ingest`. Generation = Claude (A7) behind
+`GenerationProvider`; embeddings = Voyage AI (A8) behind `EmbeddingProvider`. No engine code yet
+(built in P6) — this document is the contract. The tables it uses exist since P2.
 
 Claude API facts below come from Anthropic's current API reference (cached 2026-11-03).
 Anything about Voyage AI, and every price, is **needs verification** at implementation time.
@@ -21,13 +22,13 @@ Anything about Voyage AI, and every price, is **needs verification** at implemen
 
 ```mermaid
 flowchart TD
-  A[claim job ai_reply] --> B{conversation.ai_paused or bot.ai_enabled = false?}
+  A[claim job ai_reply] --> B{conversation.handler = human\nor bot.status = paused?}
   B -- yes --> Z[complete job, no reply]
   B -- no --> C[consume_ai_reply idempotency 'ai_reply:'+message_id]
-  C -- blocked --> F[send bot.fallback_message, not billed\nemit event trial.ended / quota_exhausted]
-  C -- allowed --> D[load context: bot, business profile, entitlements,\nlast N messages + rolling summary]
+  C -- blocked --> F[send bot_config.fallback_message, not billed\nemit event trial.ended / quota_exhausted]
+  C -- allowed --> D[load context: bot + active bot_config, business profile,\nhours, policies, entitlements, last N messages + rolling summary]
   D --> E[language & dialect detection - heuristic first]
-  E --> G[retrieval: embed query → match_knowledge_chunks hybrid RRF]
+  E --> G[retrieval: embed query → match_kb_chunks hybrid RRF]
   G --> RT[routing pre-pass on Haiku: category, complexity,\nanswerable confidence - also feeds analytics]
   RT --> RS{complaint or complex_multi_step\nor confidence below min?}
   RS -- no --> H[prompt assembly: cached prefix + retrieved context + history\nmodel = profile.generation_model]
@@ -48,7 +49,7 @@ The tool loop is capped at **4 model turns** per reply; exceeding it ends the tu
 handoff/fallback answer. A reply is billed once regardless of internal turns, routing pre-pass
 or escalation.
 
-## 3. Interfaces (contract for Phase 04)
+## 3. Interfaces (contract for P6)
 
 ```ts
 export interface GenerationProvider {
@@ -81,7 +82,7 @@ export interface GenerationResult {
 export interface EmbeddingProvider {
   readonly id: 'voyage';
   readonly model: string; // e.g. 'voyage-multilingual-2' (needs verification)
-  readonly dimensions: 1024; // must equal knowledge_chunks.embedding dimension
+  readonly dimensions: 1024; // must equal kb_chunks.embedding dimension
   embed(texts: string[], kind: 'document' | 'query'): Promise<number[][]>;
 }
 
@@ -116,7 +117,7 @@ Data-driven via `ai_model_profiles` (seeded) and the plan entitlement `ai_model_
 | `standard` | all plans (Trial, Starter, Growth, Enterprise default)           | `claude-haiku-5-5` | `claude-haiku-5-5`       | `claude-sonnet-5-5` on triggers below | none on Haiku (not offered); `default` on Sonnet escalations |
 | `premium`  | Enterprise only, by contract (`workspace_entitlement_overrides`) | `claude-opus-5-5`  | `claude-haiku-5-5`       | —                                     | `default`                                                    |
 
-**Escalation triggers** (`escalation_config.triggers`, thresholds tuned in Phase 04):
+**Escalation triggers** (`escalation_config.triggers`, thresholds tuned in P6):
 
 | Trigger              | Detected by                                                                                                                                                                                                                                    | When                       |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
@@ -131,7 +132,8 @@ report.
 **Routing pre-pass:** one Haiku call with structured output (`output_config.format`) returning
 `{category, intent, sentiment, language, dialect, complexity, answerable_confidence}`. It
 decides the model _and_ provides question classification for analytics (Growth+
-`message_classifications`), so classification costs nothing extra.
+`question_classifications`, categories `menu_products / reservations / prices / working_hours /
+services / complaints / orders / other`), so classification costs nothing extra.
 
 **Logging:** every `ai_runs` row stores `initial_model`, `model` (final), `escalated`,
 `escalation_reason`, `routing_confidence`. Escalation rate = escalated runs / all runs per
@@ -186,7 +188,7 @@ Layout (stable → volatile):
 Volatile values (current local time for "are you open now?", conversation language) go in the
 final user turn, never in the cached prefix. Minimum cacheable prefix length is
 model-dependent; we verify hits via `usage.cache_read_input_tokens` in `ai_runs`. A cache
-hit-rate panel is part of Phase 07 admin health.
+hit-rate panel is part of the P14 admin health views.
 
 **Long conversations:** when history exceeds ~6k tokens, a `summarize_conversation` job
 (Haiku) folds older turns into `conversations.summary` (`summary_message_id` marks the cut).
@@ -214,15 +216,26 @@ All tools: `strict: true`, `additionalProperties: false`, all fields `required` 
 optional), executed server-side with the workspace/bot/conversation from the job — not from model
 input. Tools are included only if the bot + entitlements enable them.
 
-| Tool                      | Gate                          | Input (model)                                                                                          | Server behavior                                                                                                                                                                                                              |
-| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search_catalog`          | catalog exists                | `{query, category?, max_results}`                                                                      | trigram/name search on `catalog_items` (available only) → returns ids, names, **prices from DB**                                                                                                                             |
-| `get_business_hours`      | always                        | `{date?}`                                                                                              | computes open/closed from `opening_hours` + `special_hours` in branch TZ                                                                                                                                                     |
-| `create_order`            | `orders` + bot.orders_enabled | `{items:[{catalog_item_id, quantity, option_choices[]}], fulfillment_type, delivery_address?, notes?}` | validates ids belong to workspace & are available, computes prices/total, inserts `orders` (`pending_confirmation`, source `ai`) + `order_items`; returns summary for the model to read back and ask the customer to confirm |
-| `confirm_order`           | same                          | `{order_id}`                                                                                           | only for orders created in this conversation; → `confirmed`                                                                                                                                                                  |
-| `create_reservation`      | `reservations` + bot flag     | `{starts_at_local, party_size, notes?}`                                                                | validates within opening hours, future, party size; inserts `pending_confirmation`                                                                                                                                           |
-| `request_handoff`         | `human_handoff` + bot flag    | `{reason}`                                                                                             | creates `handoffs`, sets `conversations.ai_paused = true`, status `pending_handoff`, notifies agents (Realtime)                                                                                                              |
-| `capture_contact_details` | always                        | `{name?, phone?, email?}`                                                                              | updates contact (validated formats)                                                                                                                                                                                          |
+Tool names follow MASTER_PROMPT §9 (E6); `confirm_order` and `capture_contact_details` are
+kept (E13).
+
+| Tool                      | Gate                          | Input (model)                                                                     | Server behavior                                                                                                                                                                                                          |
+| ------------------------- | ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `get_catalog`             | catalog exists                | `{query, category?, max_results}`                                                 | trigram/name search on `catalog_items` (available only) → returns ids, names, **prices from DB**                                                                                                                         |
+| `check_working_hours`     | always                        | `{date?, time?}`                                                                  | computes open/closed from `working_hours` + `working_hours_overrides` in the branch / workspace timezone                                                                                                                 |
+| `get_policy`              | always                        | `{type: delivery \| refund \| reservation \| other}`                              | returns active `policies` rows of that type in the customer's language; never invents a policy                                                                                                                           |
+| `create_order`            | `orders` + bot.orders_enabled | `{items:[{catalog_item_id, quantity, option_choices[]}], type, address?, notes?}` | validates ids belong to workspace & are available, computes prices, `delivery_fee_cents` and total, inserts `orders` (`pending_confirmation`, source `ai`) + `order_items`; returns a summary for the model to read back |
+| `confirm_order`           | same                          | `{order_id}`                                                                      | only for orders created in this conversation; → `confirmed`                                                                                                                                                              |
+| `create_reservation`      | `reservations` + bot flag     | `{reserved_at_local, party_size, notes?}`                                         | validates within working hours, future, party size; inserts `pending_confirmation`                                                                                                                                       |
+| `request_human_handoff`   | `human_handoff` + bot flag    | `{reason}`                                                                        | creates `handoffs`, sets `conversations.handler = human`, `status = pending`, notifies agents (Realtime + notifications)                                                                                                 |
+| `capture_contact_details` | always                        | `{name?, phone?, email?}`                                                         | updates the customer record (validated formats)                                                                                                                                                                          |
+
+**Knowledge gaps (§9, P6).** When the model has to answer "I don't know" (no supporting chunk or
+tool result), the worker logs the question in `knowledge_gaps` (one row per distinct question,
+`occurrences` + `last_seen_at` bumped on repeats) for the dashboard list (P10).
+
+**Playground (P11).** Sandbox conversations are `is_test = true`; their `ai_runs` are `is_test`
+too. `consume_ai_reply` refuses to bill them and the schema forbids `billed` on a test run.
 
 External order/reservation sync (`OrderSyncAdapter`) hooks into the `confirmed` transition
 later; `orders.external_*` columns already exist.
@@ -234,7 +247,7 @@ Assumptions per reply: ~3,000 prefix tokens, ~2,300 other input (retrieval + his
 Prices = Anthropic list prices per 1M tokens as cached on 2026-11-03 (input · output · cache
 read): Haiku 5.5 0.10 · 0.50 · — (prompts ≤ 100K tokens; Haiku charged at full input rate here),
 Sonnet 5.5 2 · 10 · 0.10, Opus 5.5 4 · 20 · 0.20. Cache-write premiums, embeddings and infra are
-excluded. **Estimates only — replaced by measured `ai_runs.cost_micros` in Phase 04.**
+excluded. **Estimates only — replaced by measured `ai_runs.cost_micros` in P6.**
 
 | Component                                               | ≈ $ per reply |
 | ------------------------------------------------------- | ------------- |
@@ -261,7 +274,7 @@ AI cost ≤ ~17 % of revenue up to the 30 % escalation alert.
 
 ## 10. Quality & evaluation
 
-- **Golden set** (Phase 04 exit criterion): ≥ 300 conversations across 3 verticals (restaurant,
+- **Golden set** (P6 exit criterion): ≥ 300 conversations across 3 verticals (restaurant,
   clinic/salon, retail) × MSA / Gulf / Egyptian / English / mixed, each with expected facts,
   forbidden claims (invented prices, wrong hours), expected tool calls, and expected handoffs.
 - Automatic checks: language match, facts-from-KB (grounding), no price not present in tool

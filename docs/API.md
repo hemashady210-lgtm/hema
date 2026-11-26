@@ -1,21 +1,23 @@
 # API Specification (v1)
 
-> Phase 01 contract. Nothing here is implemented yet. Third-party payloads (Meta, PayPal) are
+> Contract (designed in P1, synced with DECISIONS §E in P2). Nothing here is implemented yet;
+> each route is built in the phase of its function (E7, `ROADMAP.md`). The database objects it
+> relies on exist on the dev project since P2. Third-party payloads (Meta, PayPal) are
 > described at the level we depend on and are marked **needs verification** wherever the exact
 > vendor format, header or event name has to be confirmed against current docs before
 > implementation.
 
 ## 1. Surfaces
 
-| Surface                 | Base URL (Supabase Functions)                                  | Auth                                                         | Consumers          |
-| ----------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ | ------------------ |
-| Dashboard reads         | PostgREST via supabase-js                                      | Supabase JWT + RLS                                           | dashboard          |
-| App API                 | `/functions/v1/api/v1/*`                                       | `Authorization: Bearer <Supabase JWT>`                       | dashboard          |
-| Public API (Enterprise) | `/functions/v1/api/v1/*` (same routes, subset)                 | `Authorization: Bearer sk_live_…` (API key, scopes)          | customer systems   |
-| Widget API              | `/functions/v1/widget/v1/*`                                    | `X-Widget-Key: wk_…` + Origin allow-list + `X-Visitor-Token` | widget.js          |
-| Admin API               | `/functions/v1/admin/v1/*`                                     | Supabase JWT + `platform_admins`                             | dashboard `/admin` |
-| Webhooks                | `/functions/v1/webhooks-meta`, `/functions/v1/webhooks-paypal` | vendor signatures                                            | Meta, PayPal       |
-| Worker                  | `/functions/v1/worker`                                         | `X-Worker-Secret`                                            | internal only      |
+| Surface                 | Base URL (Supabase Functions)                                | Auth                                                         | Consumers          |
+| ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------ |
+| Dashboard reads         | PostgREST via supabase-js                                    | Supabase JWT + RLS                                           | dashboard          |
+| App API                 | `/functions/v1/api/v1/*`                                     | `Authorization: Bearer <Supabase JWT>`                       | dashboard          |
+| Public API (Enterprise) | `/functions/v1/api/v1/*` (same routes, subset)               | `Authorization: Bearer sk_live_…` (API key, scopes)          | customer systems   |
+| Admin API               | `/functions/v1/api/admin/v1/*` (routes of `api`, E7)         | Supabase JWT + `platform_admins` row                         | dashboard `/admin` |
+| Widget API              | `/functions/v1/widget-gateway/widget/v1/*`                   | bot `public_key` + exact Origin + signed session token       | widget.js          |
+| Webhooks                | `/functions/v1/webhook-meta`, `/functions/v1/webhook-paypal` | vendor signatures                                            | Meta, PayPal       |
+| Internal                | `/functions/v1/ai-worker`, `kb-ingest`, `scheduler`          | internal secret header; scheduler called by pg_cron + pg_net | internal only      |
 
 A custom domain (`api.<product>.com` via Cloudflare) can front these later.
 
@@ -65,7 +67,7 @@ A custom domain (`api.<product>.com` via Cloudflare) can front these later.
 | Method | Path                                    | Role               | Description                                                                                                                                              |
 | ------ | --------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | POST   | `/v1/workspaces`                        | any signed-in user | Create workspace + owner membership + 7-day trial subscription + default bot + widget connection (atomic). Body `{name, slug, default_locale, timezone}` |
-| PATCH  | `/v1/workspaces/{ws}`                   | owner/admin        | name, locale, timezone, logo (also allowed directly via RLS)                                                                                             |
+| PATCH  | `/v1/workspaces/{ws}`                   | owner/admin        | name, locale, timezone, country, category, logo (also allowed directly via RLS)                                                                          |
 | POST   | `/v1/workspaces/{ws}/invitations`       | owner/admin        | `{email, role}`; checks `max_users`; sends Resend email                                                                                                  |
 | POST   | `/v1/invitations/accept`                | invitee            | `{token}`                                                                                                                                                |
 | DELETE | `/v1/workspaces/{ws}/invitations/{id}`  | owner/admin        | revoke                                                                                                                                                   |
@@ -74,36 +76,39 @@ A custom domain (`api.<product>.com` via Cloudflare) can front these later.
 
 ### Bots, knowledge, catalog
 
-Simple CRUD on bots, business profile, Q&A, catalog goes **directly through supabase-js** (RLS +
-limit triggers). Function routes exist only where there are side effects:
+Simple CRUD on bots, business profile, working hours (+ overrides), policies, FAQs, catalog,
+manual KB notes, bot config versions, custom test cases and onboarding progress goes **directly
+through supabase-js** (RLS + column grants + limit triggers). Function routes exist only where
+there are side effects:
 
-| Method | Path                                                       | Role        | Description                                                                                                                                                                                                                                   |
-| ------ | ---------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/v1/workspaces/{ws}/knowledge/files`                      | owner/admin | `{file_name, mime_type, size_bytes, bot_id?}` → validates entitlements (`knowledge_files_max`, `knowledge_file_max_mb`, MIME) → creates `knowledge_sources(type=file,status=pending)` → returns `{source_id, upload_url}` (signed upload URL) |
-| POST   | `/v1/workspaces/{ws}/knowledge/files/{source_id}/complete` | owner/admin | confirms upload, verifies checksum/size, enqueues `ingest_knowledge_source`                                                                                                                                                                   |
-| POST   | `/v1/workspaces/{ws}/knowledge/sources/{id}/reprocess`     | owner/admin | re-ingest                                                                                                                                                                                                                                     |
-| POST   | `/v1/workspaces/{ws}/bots/{bot}/test`                      | owner/admin | sandbox reply for the "Test your bot" panel: same pipeline, **not billed**, rate-limited (20/hour), never delivered to a channel                                                                                                              |
+| Method | Path                                                     | Role        | Description                                                                                                                                                                                                                                                |
+| ------ | -------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/v1/workspaces/{ws}/knowledge/files`                    | owner/admin | `{file_name, mime_type, size_bytes, bot_id?}` → validates entitlements (`knowledge_files_max`, `knowledge_file_max_mb`, MIME) → creates `kb_sources(type=file)` + `kb_documents(status=pending)` → returns `{document_id, upload_url}` (signed upload URL) |
+| POST   | `/v1/workspaces/{ws}/knowledge/documents/{id}/complete`  | owner/admin | confirms upload, verifies checksum/size, enqueues `ingest_knowledge_source`                                                                                                                                                                                |
+| POST   | `/v1/workspaces/{ws}/knowledge/documents/{id}/reprocess` | owner/admin | re-ingest (skipped when the checksum is unchanged)                                                                                                                                                                                                         |
+| POST   | `/v1/workspaces/{ws}/bots/{bot}/playground`              | owner/admin | sandbox reply (P11): same pipeline on an `is_test` conversation, **never billed** (DB-enforced), separately rate-limited, never delivered to a channel; returns sources, classification, latency, tokens                                                   |
+| POST   | `/v1/workspaces/{ws}/bots/{bot}/tests`                   | owner/admin | run the readiness suite (`bot_tests` + `bot_test_results`, P11)                                                                                                                                                                                            |
 
 ### Channels (Connect section)
 
-| Method | Path                                               | Role        | Description                                                                                         |
-| ------ | -------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------- |
-| GET    | `/v1/workspaces/{ws}/channels`                     | member      | Connect-page view model: per channel type → connection(s), open request, plan allowance, fee status |
-| POST   | `/v1/workspaces/{ws}/channel-requests`             | owner/admin | `{channel_type: whatsapp                                                                            | messenger | instagram, bot_id, contact_name, contact_email, contact_phone?, business_name, details{…}, customer_notes?, payment_method: paypal | manual}`→ status`pending`; emits `channel_request.created`(Resend + n8n); returns`{request, payment: {type:'paypal', approve_url} | {type:'manual', instructions}}` |
-| POST   | `/v1/workspaces/{ws}/channel-requests/{id}/cancel` | owner/admin | only while `pending`; refund flow if fee paid                                                       |
-| PATCH  | `/v1/workspaces/{ws}/widget`                       | owner/admin | `{allowed_origins[]}` (exact origins, validated)                                                    |
-| POST   | `/v1/workspaces/{ws}/widget/rotate-key`            | owner/admin | new `public_key`, old key stops working                                                             |
-| POST   | `/v1/workspaces/{ws}/channels/{id}/disconnect`     | owner       | customer-initiated disconnect (status → `disconnected`, token deleted from Vault)                   |
+| Method | Path                                               | Role        | Description                                                                                                                         |
+| ------ | -------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/v1/workspaces/{ws}/channels`                     | member      | Connect-page view model: per channel type → channel row (status, mode, last health check), open request, plan allowance, fee status |
+| POST   | `/v1/workspaces/{ws}/channel-requests`             | owner/admin | `{channel_type: whatsapp                                                                                                            | messenger | instagram, bot_id, contact_name, contact_email, contact_phone?, business_name, submitted_data{…}, customer_notes?, payment_method: paypal | manual}`→ status`pending`; emits `channel_request.created`(Resend + n8n); returns`{request, payment: {type:'paypal', approve_url} | {type:'manual', instructions}}` |
+| POST   | `/v1/workspaces/{ws}/channel-requests/{id}/cancel` | owner/admin | only while `pending`; refund flow if fee paid                                                                                       |
+| PATCH  | `/v1/workspaces/{ws}/widget`                       | owner/admin | `{allowed_origins[]}` (exact origins, validated)                                                                                    |
+| POST   | `/v1/workspaces/{ws}/bots/{bot}/rotate-key`        | owner/admin | new `bots.public_key`, old key stops working                                                                                        |
+| POST   | `/v1/workspaces/{ws}/channels/{id}/disconnect`     | owner       | customer-initiated disconnect (status → `not_connected`, credential row + Vault secret deleted, event row)                          |
 
 ### Inbox
 
-| Method | Path                                                        | Role   | Description                                                                                                                                                               |
-| ------ | ----------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/v1/workspaces/{ws}/conversations/{id}/messages`           | agent+ | Human reply `{body, attachments?[], client_message_id}` → insert + deliver; **not billed**. WhatsApp outside 24 h window → `409 outside_service_window` (templates later) |
-| POST   | `/v1/workspaces/{ws}/conversations/{id}/handoff`            | agent+ | `{action: take                                                                                                                                                            | release | resolve}`; requires `human_handoff` |
-| POST   | `/v1/workspaces/{ws}/conversations/{id}/close`              | agent+ | close conversation                                                                                                                                                        |
-| POST   | `/v1/workspaces/{ws}/orders/{id}/confirm` · `/cancel`       | agent+ | status transitions with customer notification                                                                                                                             |
-| POST   | `/v1/workspaces/{ws}/reservations/{id}/confirm` · `/cancel` | agent+ | same                                                                                                                                                                      |
+| Method | Path                                                        | Role   | Description                                                                                                                                                                  |
+| ------ | ----------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/v1/workspaces/{ws}/conversations/{id}/messages`           | agent+ | Human reply `{content, attachments?[], client_message_id}` → insert + deliver; **not billed**. WhatsApp outside 24 h window → `409 outside_service_window` (templates later) |
+| POST   | `/v1/workspaces/{ws}/conversations/{id}/handoff`            | agent+ | `handler ai ⇄ human` + `handoffs` row; `{action: take                                                                                                                        | release | resolve}`; requires `human_handoff` |
+| POST   | `/v1/workspaces/{ws}/conversations/{id}/close`              | agent+ | close conversation                                                                                                                                                           |
+| POST   | `/v1/workspaces/{ws}/orders/{id}/confirm` · `/cancel`       | agent+ | status transitions with customer notification                                                                                                                                |
+| POST   | `/v1/workspaces/{ws}/reservations/{id}/confirm` · `/cancel` | agent+ | same                                                                                                                                                                         |
 
 ### Billing
 
@@ -114,7 +119,7 @@ limit triggers). Function routes exist only where there are side effects:
 | POST   | `/v1/workspaces/{ws}/billing/change-plan`    | owner       | upgrade/downgrade; upgrade immediate, downgrade at period end (BILLING.md §6)                                          |
 | POST   | `/v1/workspaces/{ws}/billing/cancel`         | owner       | cancel at period end                                                                                                   |
 | POST   | `/v1/workspaces/{ws}/billing/manual-request` | owner       | manual payment request `{plan_code?, interval?, product_code?, contact_*, preferred_method, message}` → admin notified |
-| GET    | `/v1/workspaces/{ws}/billing/transactions`   | owner/admin | billing history                                                                                                        |
+| GET    | `/v1/workspaces/{ws}/billing/transactions`   | owner/admin | billing history (`payment_transactions`, `billing_events`, `invoices_records`)                                         |
 
 ### Data rights
 
@@ -128,79 +133,93 @@ limit triggers). Function routes exist only where there are side effects:
 
 ## 4. Public API (Enterprise, API keys)
 
-Scopes: `conversations:read`, `messages:write`, `contacts:read`, `contacts:write`,
+Scopes: `conversations:read`, `messages:write`, `customers:read`, `customers:write`,
 `orders:read`, `orders:write`, `reservations:read`, `knowledge:write`.
 
 | Method    | Path                                                                               | Scope                                             |
 | --------- | ---------------------------------------------------------------------------------- | ------------------------------------------------- |
 | GET       | `/v1/conversations` · `/v1/conversations/{id}` · `/v1/conversations/{id}/messages` | conversations:read                                |
 | POST      | `/v1/conversations/{id}/messages`                                                  | messages:write (human/system message, not billed) |
-| GET/PATCH | `/v1/contacts[/{id}]`                                                              | contacts:*                                        |
+| GET/PATCH | `/v1/customers[/{id}]`                                                             | customers:*                                       |
 | GET/PATCH | `/v1/orders[/{id}]`                                                                | orders:*                                          |
 | GET       | `/v1/reservations[/{id}]`                                                          | reservations:read                                 |
-| POST      | `/v1/knowledge/qa` (bulk upsert)                                                   | knowledge:write                                   |
+| POST      | `/v1/knowledge/faqs` (bulk upsert)                                                 | knowledge:write                                   |
 
 Outbound webhooks to customer systems (order created, etc.) are a later phase.
 
 ## 5. Widget API
 
-Every request: `X-Widget-Key`, browser `Origin` must exactly match an entry in
-`widget_configs.allowed_origins` (empty list = widget disabled). CORS echoes the allowed origin only.
+`POST /widget/v1/sessions` takes the bot's `public_key`; the browser `Origin` must exactly match
+an entry in `widget_settings.allowed_origins` (empty list = widget disabled, E13). It returns a
+short-lived token signed with `WIDGET_SIGNING_SECRET` that every later request carries. CORS
+echoes the allowed origin only.
 
-| Method | Path                                                    | Description                                                                                                              |
-| ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| GET    | `/widget/v1/bootstrap`                                  | Theme, greeting, launcher label, position, pre-chat fields, languages, branding flag, `status: online                    | offline` (real: offline if workspace not active or widget disabled) |
-| POST   | `/widget/v1/sessions`                                   | `{locale?}` → `{visitor_token}` (opaque, 256-bit, stored hashed; long-lived per browser)                                 |
-| POST   | `/widget/v1/conversations`                              | start or resume (one open conversation per visitor) `{prechat?{name,phone,email}}` → `{conversation_id, realtime_topic}` |
-| POST   | `/widget/v1/conversations/{id}/messages`                | `{client_message_id, text ≤ 2000}` → `202 {message_id}`; enqueues AI reply                                               |
-| GET    | `/widget/v1/conversations/{id}/messages?after={cursor}` | messages for this visitor's conversation only                                                                            |
+| Method | Path                                                    | Description                                                                                                                                                   |
+| ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/widget/v1/bootstrap`                                  | Theme, greeting, launcher label, position, pre-chat fields, languages, branding flag, `status: online                                                         | offline` (real: offline if workspace not active or widget disabled) |
+| POST   | `/widget/v1/sessions`                                   | `{public_key, visitor_id?, locale?}` → `{session_token, expires_at, visitor_id}` (signed, short-lived; `visitor_id` = `customer_identities.external_user_id`) |
+| POST   | `/widget/v1/install-ping`                               | records `widget_settings.installed_verified_at` + `installed_origin` from the real page (P8)                                                                  |
+| POST   | `/widget/v1/conversations`                              | start or resume (one open conversation per visitor) `{prechat?{name,phone,email}}` → `{conversation_id, realtime_topic}`                                      |
+| POST   | `/widget/v1/conversations/{id}/messages`                | `{client_message_id, text ≤ 2000}` → `202 {message_id}`; enqueues AI reply                                                                                    |
+| GET    | `/widget/v1/conversations/{id}/messages?after={cursor}` | messages for this visitor's conversation only                                                                                                                 |
 
 Realtime: the widget subscribes to Broadcast topic `widget:{realtime_topic}` and only receives
-`{"type":"new_message"}` / `{"type":"typing"}` pings — never content (P6). Polling fallback every
+`{"type":"new_message"}` / `{"type":"typing"}` pings — never content (proposal P6). Polling fallback every
 4 s → 15 s with backoff when Realtime is unavailable. Exact Realtime authorization model for
 public broadcast channels — **needs verification**.
 
 ## 6. Admin API (Super Admin)
 
-| Method  | Path                                               | Description                                                                                                                                                                                                                                                                                                                                                    |
-| ------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET     | `/admin/v1/workspaces?query=&status=&plan=`        | search/list with plan, usage, channels                                                                                                                                                                                                                                                                                                                         |
-| GET     | `/admin/v1/workspaces/{ws}`                        | full detail incl. internal notes                                                                                                                                                                                                                                                                                                                               |
-| POST    | `/admin/v1/workspaces/{ws}/status`                 | `{status: active                                                                                                                                                                                                                                                                                                                                               | read_only            | suspended, reason}`              |
-| POST    | `/admin/v1/workspaces/{ws}/subscriptions/activate` | manual activation `{plan_code, interval?, period_start, period_end, custom_amount_cents?, currency?, transaction{amount_cents, currency, provider_ref?, note}}`                                                                                                                                                                                                |
-| POST    | `/admin/v1/workspaces/{ws}/entitlement-overrides`  | `{key, value, reason, expires_at?}` (Enterprise custom limits)                                                                                                                                                                                                                                                                                                 |
-| GET     | `/admin/v1/channel-requests?status=pending`        | queue                                                                                                                                                                                                                                                                                                                                                          |
-| POST    | `/admin/v1/channel-requests/{id}/status`           | `{status: in_progress                                                                                                                                                                                                                                                                                                                                          | rejected             | canceled, note, internal_note?}` |
-| POST    | `/admin/v1/channel-requests/{id}/connect`          | `{external_account_id, external_business_id?, phone_number_display?, display_name, access_token, token_expires_at?, config{}}` → token to **Vault**, `channel_connections` row `connected` only after a live check succeeds (e.g. fetch phone number / page via Graph API — **needs verification** of endpoint). Never marks connected without the check (A14) |
-| POST    | `/admin/v1/channel-connections/{id}/status`        | `{status: error                                                                                                                                                                                                                                                                                                                                                | disconnected, note}` |
-| POST    | `/admin/v1/transactions/{id}/refund`               | PayPal refund or manual refund record                                                                                                                                                                                                                                                                                                                          |
-| POST    | `/admin/v1/usage-periods/{id}/overage-invoice`     | create manual overage transaction (C5)                                                                                                                                                                                                                                                                                                                         |
-| GET/PUT | `/admin/v1/plans…`, `/admin/v1/settings/{key}`     | edit plans, prices, entitlements, platform settings                                                                                                                                                                                                                                                                                                            |
+All routes below are `api` function routes under `/admin/v1/*` (E7), guarded by a
+`platform_admins` row.
+
+| Method  | Path                                               | Description                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET     | `/admin/v1/workspaces?query=&status=&plan=`        | search/list with plan, usage, channels                                                                                                                                                                                                                                                                                                                                                            |
+| GET     | `/admin/v1/workspaces/{ws}`                        | full detail incl. internal notes                                                                                                                                                                                                                                                                                                                                                                  |
+| POST    | `/admin/v1/workspaces/{ws}/status`                 | `{status: active                                                                                                                                                                                                                                                                                                                                                                                  | read_only | suspended, reason}`              |
+| POST    | `/admin/v1/workspaces/{ws}/subscriptions/activate` | manual activation `{plan_code, interval?, period_start, period_end, custom_amount_cents?, currency?, transaction{amount_cents, currency, provider_ref?, note}}`                                                                                                                                                                                                                                   |
+| POST    | `/admin/v1/workspaces/{ws}/entitlement-overrides`  | `{key, value, reason, expires_at?}` (Enterprise custom limits)                                                                                                                                                                                                                                                                                                                                    |
+| GET     | `/admin/v1/channel-requests?status=pending`        | queue                                                                                                                                                                                                                                                                                                                                                                                             |
+| POST    | `/admin/v1/channel-requests/{id}/status`           | `{status: in_progress                                                                                                                                                                                                                                                                                                                                                                             | rejected  | canceled, note, internal_note?}` |
+| POST    | `/admin/v1/channel-requests/{id}/connect`          | `{external_account_id, external_ids{}, phone_number_display?, display_name, access_token, scopes?[], expires_at?, config{}}` → token to **Vault** + `channel_credentials` row; `channels` row becomes `connected` only after a passing health check (e.g. fetch phone number / page via Graph API — **needs verification** of endpoint). The database rejects `connected` without it (A14, §11.5) |
+| POST    | `/admin/v1/channels/{id}/health-check`             | run the adapter `healthCheck()`; store result on the channel                                                                                                                                                                                                                                                                                                                                      |
+| POST    | `/admin/v1/channels/{id}/status`                   | `{status: error                                                                                                                                                                                                                                                                                                                                                                                   | disabled  | not_connected, note}`            |
+| POST    | `/admin/v1/transactions/{id}/refund`               | PayPal refund or manual refund record                                                                                                                                                                                                                                                                                                                                                             |
+| POST    | `/admin/v1/usage-periods/{id}/overage-invoice`     | create / issue a manual overage invoice (`invoices_records`, C5)                                                                                                                                                                                                                                                                                                                                  |
+| GET     | `/admin/v1/jobs?status=dead`                       | dead-letter viewer (P14)                                                                                                                                                                                                                                                                                                                                                                          |
+| POST    | `/admin/v1/jobs/{id}/retry`                        | `retry_job(id, admin_user_id, reason)` (E1) — re-queues a dead job; audited                                                                                                                                                                                                                                                                                                                       |
+| PUT     | `/admin/v1/feature-flags/{key}`                    | `{scope: global or workspace, workspace_id?, enabled}` (e.g. `meta_embedded_signup`, E2)                                                                                                                                                                                                                                                                                                          |
+| GET/PUT | `/admin/v1/plans…`, `/admin/v1/settings/{key}`     | edit plans, prices, entitlements, platform settings                                                                                                                                                                                                                                                                                                                                               |
 
 Every admin mutation writes `audit_logs` (`actor_type = platform_admin`).
 
 ## 7. Webhooks (inbound)
 
-### 7.1 Meta — `webhooks-meta` (**needs verification** for every vendor detail below)
+### 7.1 Meta — `webhook-meta` (**needs verification** for every vendor detail below)
 
 - `GET` verification handshake: echo `hub.challenge` when `hub.verify_token` matches
   `META_VERIFY_TOKEN`.
 - `POST`: verify `X-Hub-Signature-256` = `sha256=` HMAC of the raw body with `META_APP_SECRET`
-  **before** parsing; respond `200` quickly; process asynchronously.
-- Routing: WhatsApp events identify the connection by phone-number id in the change metadata;
-  Messenger/Instagram by page / IG account id in the entry. Unknown ids are logged and dropped.
-- Normalized into `NormalizedInboundEvent { kind: message|status|reaction|unsupported, connection_id, external_contact_id, external_message_id, timestamp, content }`.
+  **before** parsing; store the raw event in `webhook_events` (unique `(provider, event_id)`;
+  the event id for Meta is the provider id where one exists, else a hash of the raw body —
+  **needs verification**); respond `200` quickly; process asynchronously.
+- Routing: WhatsApp events identify the channel by phone-number id in the change metadata;
+  Messenger/Instagram by page / IG account id in the entry (`channels.external_account_id`).
+  Unknown ids are logged and the event marked `ignored`.
+- Normalized into `NormalizedInboundEvent { kind: message|status|reaction|unsupported, workspace_id, bot_id, channel_id, external_user_id, external_message_id, text, attachments, timestamp }` (§8).
 - Status callbacks (sent/delivered/read/failed) update `messages.delivery_status`.
 
-### 7.2 PayPal — `webhooks-paypal` (**needs verification**)
+### 7.2 PayPal — `webhook-paypal` (**needs verification**)
 
 - Verify signature using PayPal's verification API (`PAYPAL_WEBHOOK_ID`) or certificate method.
-- Insert into `payment_webhook_events` keyed by event id (duplicates ignored), then process.
+- Insert into `webhook_events` (provider `paypal`) keyed by event id (duplicates ignored), then
+  process; each state change writes `billing_events`.
 - Events we expect to handle (exact names to verify): subscription activated, updated,
   suspended, cancelled, expired, payment failed; sale/capture completed; capture refunded.
   Mapping in [`BILLING.md §5`](./BILLING.md).
 
-## 8. Outbound integrations (from the worker)
+## 8. Outbound integrations (from `ai-worker`, `kb-ingest`, `scheduler`)
 
 | Target                 | Purpose                          | Notes                                                                                                                      |
 | ---------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
