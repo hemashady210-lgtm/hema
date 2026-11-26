@@ -114,7 +114,7 @@ Core tables (merge/split if justified, document why):
 - channels (bot_id, type: whatsapp/messenger/instagram/widget, status: not_connected/pending/connected/error/disabled, connection_mode: automatic (widget)/manual/oauth, external_ids JSONB)
 - channel_credentials (channel_id, encrypted token via pgsodium/Vault, scopes, expires_at) — NEVER readable by client roles
 - channel_connection_requests (channel_type, submitted data, status, admin notes, fee_paid)
-- widget_settings (bot_id, allowed_domains[] _(P1 uses exact `allowed_origins`; pending owner OK, DECISIONS E9)_, theme, position, launcher text ar/en, installed_verified_at)
+- widget_settings (bot_id, allowed_domains[] _[Reconciled: E13. Exact `allowed_origins` (scheme + host + port) is used instead of `allowed_domains`, a stricter Origin check.]_, theme, position, launcher text ar/en, installed_verified_at)
 - customers (workspace_id, display_name, phone, email, channel identities, tags, notes, first_seen, last_seen)
 - customer_identities (customer_id, channel_type, external_user_id, unique(workspace_id, channel_type, external_user_id))
 - conversations (bot_id, channel_id, customer_id, status: open/pending/closed, handler: ai/human, assigned_to, last_message_at, last_message_preview)
@@ -127,7 +127,7 @@ Core tables (merge/split if justified, document why):
 - analytics_events (append-only, partitioned by month) + analytics_daily rollup (workspace_id, date, messages_in, messages_out, conversations, orders, reservations, avg_response_ms, per-category counts)
 - bot_tests, bot_test_cases, bot_test_results (question, expected facts, actual, pass/fail, score)
 - plans (code, name, is_public, trial) + plan_prices (interval month/year, amount, currency) + entitlement_definitions / plan_entitlements / workspace_entitlement_overrides (limits and features by key) — DATA-DRIVEN _[Reconciled: E9. Tested in P1; replaces subscription_plans with limits/features JSONB. CLAUDE.md requires entitlements asked for by key.]_
-- subscriptions (workspace_id, plan_id, provider: paypal/manual, provider_subscription_id, status: trialing/active/past_due/grace/canceled/expired/suspended (+ pending_activation, pending owner OK, DECISIONS E9), period_start, period_end, cancel_at_period_end)
+- subscriptions (workspace_id, plan_id, provider: paypal/manual, provider_subscription_id, status: trialing/active/past_due/grace/canceled/expired/suspended (+ pending_activation for a PayPal approval or manual payment awaiting activation _[Reconciled: E13]_), period_start, period_end, cancel_at_period_end)
 - usage_periods (workspace_id, period_start, period_end, ai_replies_included, ai_replies_used, overage_units)
 - usage_events (append-only reserve/release ledger, workspace_id, usage_period_id, kind: ai_reply_reserved/ai_reply_released, quantity ±1, ai_run_id, idempotency_key unique, created_at) _[Reconciled: E9. Tested in P1 behind consume_ai_reply/release_ai_reply; replaces usage_records.]_
 - billing_events (append-only audit of every billing state change)
@@ -161,7 +161,7 @@ Synchronous: dashboard CRUD, auth, widget session creation. Asynchronous: AI rep
 ## 9. AI ENGINE (packages/ai-engine, channel-agnostic)
 - Input: normalized event + conversation history. Output: reply text + actions.
 - Steps: load bot config + business context (cached) → language detection (reply in customer's language: Arabic MSA/Gulf/Egyptian or English) → classify question (fast model, structured output) → hybrid retrieval (pgvector similarity + keyword/full-text, filtered by workspace_id + bot) → build prompt (system guardrails, business instructions, working hours with timezone, retrieved facts, history window with summarization) → generate (Claude) → post-check → return.
-- Tools (structured tool use): get_catalog, check_working_hours, create_order, create_reservation, request_human_handoff, get_policy (+ confirm_order and capture_contact_details from P1, pending owner OK, DECISIONS E6). Tools are workspace-scoped and validated.
+- Tools (structured tool use): get_catalog, check_working_hours, create_order, create_reservation, request_human_handoff, get_policy (+ confirm_order and capture_contact_details _[Reconciled: E13]_). Tools are workspace-scoped and validated.
 - Missing info: never invent prices, hours, or policies. Say it doesn't know and offer handoff. Log as "knowledge gap" for the dashboard.
 - Human handoff: on request, complaint threshold, low confidence, or rule → handler=human, notify agents (in-app + email).
 - Provider abstraction: interface LLMProvider {generate, stream?, countTokens}; EmbeddingsProvider {embed}. Model routing per plan/bot.

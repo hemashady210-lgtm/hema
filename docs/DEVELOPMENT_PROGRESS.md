@@ -85,7 +85,7 @@ Supabase project was created and no migration was applied to one.
 ### Reconciliation session (2026-11-26), docs only
 
 The owner decided every `GAP_ANALYSIS.md` §1 item. They are recorded as **DECISIONS §E**
-(E0–E12). General rule E0: MASTER_PROMPT + ADDENDUM is the source of truth, except where existing
+(E0–E13). General rule E0: MASTER_PROMPT + ADDENDUM is the source of truth, except where existing
 tested work is equal or better.
 
 - Done: `DECISIONS.md` (§E, A14/A15/P1/P2 rows), `MASTER_PROMPT.md` (inline _[Reconciled]_
@@ -98,6 +98,8 @@ tested work is equal or better.
   CHANNELS, TESTING_STRATEGY, RISK_REGISTER. DECISIONS.md wins where they differ. The full sync
   and the file renames (E11) are the first task of P2.
 - Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
+- Owner approved the three kept items (DECISIONS E13): `allowed_origins`, `pending_activation`,
+  and the tools `confirm_order` + `capture_contact_details`.
 
 Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `main`. Setting
 `main` as the GitHub default branch is an owner action (repo Settings → General).
@@ -105,8 +107,6 @@ Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `
 ### Needs owner action
 
 - Set `main` as the default branch (GitHub Settings → General).
-- OK or veto for the items kept pending approval (DECISIONS §E9): `allowed_origins`,
-  `pending_activation`, tools `confirm_order` / `capture_contact_details`.
 - Create the Supabase project (EU, Frankfurt). P2 needs it.
 
 ### Next: P2 Database & security (not started)

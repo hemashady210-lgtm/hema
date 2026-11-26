@@ -27,9 +27,9 @@ the role of the shared secret. It has now been renamed to `N8N_SHARED_SECRET`.
 | 3   | Phase plan               | **E3:** P1–P17 adopted; dialect eval in P6; ROADMAP rewritten                                                                                                                                                   | —               | ✅ done |
 | 4   | Table names              | **E9:** master names, except tested objects whose rename adds risk (entitlement tables, `usage_events`, `ai_model_profiles`/`ai_model_prices`, `jobs`). Full map in DECISIONS §E9                               | P2              | ✅      |
 | 5   | Conversation model       | **E10** (resolved by the general rule E0): master `status` open/pending/closed + `handler` ai/human                                                                                                             | P2              | ✅      |
-| 6   | Subscription states      | **E4:** add `grace` (3 days). `pending_activation` kept pending owner OK                                                                                                                                        | P2, P12         | ✅      |
+| 6   | Subscription states      | **E4:** add `grace` (3 days). `pending_activation` kept (approved, E13)                                                                                                                                         | P2, P12         | ✅      |
 | 7   | Channel status enum      | **E5:** not_connected / pending / connected / error / disabled; `connection_mode` automatic / manual / oauth                                                                                                    | P2              | ✅      |
-| 8   | AI tool set              | **E6:** add `get_policy`; master tool names; `confirm_order`, `capture_contact_details` pending owner OK                                                                                                        | P6              | ✅      |
+| 8   | AI tool set              | **E6:** add `get_policy`; master tool names; `confirm_order`, `capture_contact_details` kept (approved, E13)                                                                                                    | P6              | ✅      |
 | 9   | Edge function topology   | **E7:** split per §4 (`admin` → `api` `admin/*`; `worker` → `ai-worker` / `kb-ingest` / `scheduler`)                                                                                                            | Built per phase | ✅      |
 | 10  | Google sign-in           | **E8:** P3, configurable, off when not configured (`VITE_AUTH_GOOGLE_ENABLED`)                                                                                                                                  | P3              | ✅      |
 | 11  | Doc file names           | **E11:** master names + SECURITY.md, DEPLOYMENT.md, along with the doc sync                                                                                                                                     | P2              | ✅      |
@@ -127,6 +127,6 @@ Both apps' `vite-env.d.ts` typings were updated to match the renamed browser var
 
 ## 4. Still open (owner)
 
-- OK or veto for the items kept pending approval (DECISIONS §E9): `allowed_origins`,
-  `pending_activation`, and the extra tools `confirm_order` / `capture_contact_details`.
+- ~~OK or veto for the items kept pending approval~~: **all three approved** (DECISIONS E13):
+  `allowed_origins`, `pending_activation`, `confirm_order` + `capture_contact_details`.
 - Approve the P2 plan, including the column-level rename list, before any migration is written.
