@@ -95,12 +95,12 @@ export function MembersPage() {
       <div className="overflow-hidden rounded-xl border bg-surface-1">
         <table className="w-full text-start text-callout">
           <caption className="sr-only">{t('members.title')}</caption>
-          <thead className="material-thin sticky top-14 z-10 border-x-0 border-t-0 text-footnote text-text-tertiary">
+          <thead className="border-b bg-surface-2/60 text-footnote text-text-tertiary">
             <tr>
               <th scope="col" className="px-4 py-3 text-start font-medium sm:px-5">
                 {t('members.columns.member')}
               </th>
-              <th scope="col" className="px-4 py-3 text-start font-medium">
+              <th scope="col" className="hidden px-4 py-3 text-start font-medium sm:table-cell">
                 {t('members.columns.role')}
               </th>
               <th scope="col" className="hidden px-4 py-3 text-start font-medium md:table-cell">
@@ -209,10 +209,13 @@ function MemberTableRow({ member }: { member: MemberRow }) {
             <span dir="ltr" className="truncate text-start text-footnote text-text-tertiary">
               {member.email}
             </span>
+            <span className="mt-1 sm:hidden">
+              <Badge tone={ROLE_TONE[member.role]}>{t(`members.roles.${member.role}`)}</Badge>
+            </span>
           </div>
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="hidden px-4 py-3 sm:table-cell">
         <Badge tone={ROLE_TONE[member.role]}>{t(`members.roles.${member.role}`)}</Badge>
       </td>
       <td className="hidden px-4 py-3 text-text-secondary md:table-cell">

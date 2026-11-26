@@ -46,3 +46,60 @@ jobs:
       - run: deno lint supabase/functions
       - run: deno check --config supabase/functions/api/deno.json supabase/functions/api/index.ts supabase/functions/api/app_test.ts supabase/functions/_shared/shared_test.ts
       - run: deno test --config supabase/functions/api/deno.json --allow-env supabase/functions/_shared supabase/functions/api
+
+  # P3 acceptance: Supabase local stack (Auth + PostgREST + edge runtime + mail catcher),
+  # `api` integration test, dashboard build, Playwright journey in ar + en with axe.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - run: pnpm install --frozen-lockfile
+      - name: Start Supabase local stack
+        run: supabase start -x studio,imgproxy,logflare,vector,supavisor,realtime
+      - name: Export local (well-known, non-secret) stack keys
+        run: |
+          supabase status -o env > "$RUNNER_TEMP/sb.env"
+          set -a; . "$RUNNER_TEMP/sb.env"; set +a
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
+            echo "SUPABASE_SECRET_KEY=$SECRET_KEY"
+            echo "E2E_SUPABASE_URL=$API_URL"
+            echo "E2E_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
+            echo "E2E_SUPABASE_SECRET_KEY=$SECRET_KEY"
+            echo "E2E_MAILPIT_URL=http://127.0.0.1:54324"
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=$PUBLISHABLE_KEY"
+            echo "VITE_API_BASE_URL=$API_URL/functions/v1/api"
+            echo "VITE_APP_ENV=local"
+            echo "VITE_AUTH_GOOGLE_ENABLED=false"
+          } >> "$GITHUB_ENV"
+      - name: api integration test (edge runtime + Auth + RLS)
+        run: |
+          curl -sf --retry 10 --retry-delay 3 --retry-all-errors "$SUPABASE_URL/functions/v1/api/health"
+          API_INTEGRATION_URL="$SUPABASE_URL/functions/v1/api" \
+            deno test --config supabase/functions/api/deno.json --allow-env --allow-net supabase/functions/api/integration_test.ts
+      - name: Build dashboard
+        run: pnpm --filter @ai-crm/dashboard build
+      - name: Install Chromium
+        run: pnpm --filter @ai-crm/dashboard exec playwright install --with-deps chromium
+      - name: Playwright journey (ar + en, axe)
+        run: pnpm --filter @ai-crm/dashboard exec playwright test --project=journey
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/dashboard/playwright-report
+          retention-days: 7

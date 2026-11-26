@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BrandMark } from '@/components/brand-mark';
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { X } from 'lucide-react';
 import { useWorkspace } from '@/features/workspaces/context';
 import { storage } from '@/lib/storage';
 import { CommandPalette } from './CommandPalette';
@@ -35,8 +42,14 @@ export function AppShell() {
         <SheetContent>
           <SheetTitle className="sr-only">{t('shell.navLabel')}</SheetTitle>
           <SheetDescription className="sr-only">{workspace.name}</SheetDescription>
-          <div className="flex h-14 items-center border-b px-4">
+          <div className="flex h-14 items-center justify-between border-b px-4">
             <BrandMark />
+            <SheetClose
+              aria-label={t('common.close')}
+              className="grid size-9 place-items-center rounded-md text-text-tertiary hover:bg-surface-3 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <X aria-hidden className="size-4" />
+            </SheetClose>
           </div>
           <div className="flex-1 overflow-y-auto px-3 py-4">
             <SidebarNav slug={workspace.slug} onNavigate={() => setMenuOpen(false)} />

@@ -68,7 +68,7 @@ export function TopBar({
       >
         <Search aria-hidden className="size-4" />
         <span className="flex-1 text-start">{t('shell.jumpTo')}</span>
-        <span className="flex items-center gap-0.5">
+        <span dir="ltr" className="flex items-center gap-0.5">
           <Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd>
           <Kbd>K</Kbd>
         </span>
@@ -87,7 +87,9 @@ export function TopBar({
           <Search aria-hidden />
         </Button>
         <LanguageToggle compact />
-        <ThemeMenu />
+        <div className="hidden sm:block">
+          <ThemeMenu />
+        </div>
         <NotificationsBell workspaceId={workspace.id} />
         <div className="ms-1">
           <UserMenu slug={workspace.slug} />
