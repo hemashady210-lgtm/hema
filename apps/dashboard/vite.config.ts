@@ -2,10 +2,17 @@
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+// Product name lives only in packages/shared/src/brand.ts (decision C11).
+import { BRAND } from '../../packages/shared/src/brand.ts';
+
+const brandHtml: Plugin = {
+  name: 'brand-html',
+  transformIndexHtml: (html) => html.replaceAll('%PRODUCT_NAME%', BRAND.productName),
+};
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), brandHtml],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

@@ -42,7 +42,7 @@
   --border-strong: rgb(148 170 255 / 0.18);
   --text-primary: #f2f5fc;
   --text-secondary: #a6b0c6;
-  --text-tertiary: #7a85a0;
+  --text-tertiary: #808ba6; /* P3: was #7a85a0 (4.21:1 on elevated) → ≥ 4.5:1 on every surface */
   --text-disabled: #4a5368;
   --primary: var(--royal-500);
   --primary-foreground: #ffffff;
@@ -96,13 +96,13 @@
   --border-strong: rgb(15 28 77 / 0.18);
   --text-primary: #0b1020;
   --text-secondary: #4a5470;
-  --text-tertiary: #6b7590;
+  --text-tertiary: #5f6984; /* P3: was #6b7590 (3.91:1 on surface-3) */
   --text-disabled: #a3abbf;
   --primary: var(--royal-600);
   --accent: var(--electric-600);
   --accent-foreground: #ffffff;
-  --success: #138a4b;
-  --warning: #b26b00;
+  --success: #0e7540; /* P3: was #138a4b (3.9:1 on surface-3) */
+  --warning: #8f5600; /* P3: was #b26b00 (3.6:1 on surface-3) */
   --danger: #c62b3b;
   --info: #006ba8;
   --material-ultra-thin: rgb(255 255 255 / 0.4);
@@ -165,8 +165,11 @@
 
 /* Non-inline: emitted as CSS variables so locale overrides (Arabic line-heights) cascade. */
 @theme {
-  --font-sans: 'SF Pro Text', 'SF Pro Display', Inter, system-ui, sans-serif;
-  --font-arabic: 'SF Arabic', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', system-ui, sans-serif;
+  --font-sans: 'SF Pro Text', 'SF Pro Display', 'Inter Variable', Inter, system-ui, sans-serif;
+  /* Arabic subset only is loaded for Plex, so Latin glyphs in Arabic UI fall through to Inter. */
+  --font-arabic:
+    'SF Arabic', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Inter Variable', Inter, system-ui,
+    sans-serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
 
   /* Type scale (LTR line-heights; Arabic overrides in globals.css) */
@@ -206,6 +209,10 @@
   --shadow-glow: var(--elevation-glow);
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --duration-micro: 120ms;
+  --duration-standard: 200ms;
+  --duration-emphasized: 320ms;
+  --duration-spring: 450ms;
   --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
 }
