@@ -174,7 +174,8 @@ insert into public.invoices_records (workspace_id, usage_period_id, amount_cents
   ('10000000-0000-0000-0000-00000000000a', '39000000-0000-0000-0000-00000000000a', 1000);
 insert into public.jobs (workspace_id, type) values ('10000000-0000-0000-0000-00000000000a', 'ai_reply');
 insert into public.webhook_events (provider, event_id, event_type, workspace_id, signature_valid, payload) values
-  ('paypal', 'EV-MATRIX-1', 'TEST', '10000000-0000-0000-0000-00000000000a', true, '{}');
+  ('paypal', 'EV-MATRIX-1', 'TEST', '10000000-0000-0000-0000-00000000000a', true, '{}'),
+  ('meta', 'EV-MATRIX-2', 'messages', '10000000-0000-0000-0000-00000000000a', true, '{"text":"hello"}');
 insert into public.platform_events (event_type, workspace_id) values ('workspace.created', '10000000-0000-0000-0000-00000000000a');
 insert into public.internal_notes (workspace_id, entity_type, entity_id, body, author_id) values
   ('10000000-0000-0000-0000-00000000000a', 'workspace', '10000000-0000-0000-0000-00000000000a', 'admin only', '00000000-0000-0000-0000-0000000000a1');
@@ -316,7 +317,7 @@ begin
   end loop;
 end $$;
 
-select plan((select count(*)::int * 4 from m) + 24);
+select plan((select count(*)::int * 4 from m) + 37);
 
 -- Coverage: every table with a workspace_id column (plus workspaces) is in the matrix.
 select is_empty(
@@ -427,8 +428,9 @@ select is(test_helpers.attempt($$ insert into public.faqs (workspace_id, source_
 select is((select count(*)::int from public.bots), 1, 'read-only workspace: data stays readable');
 reset role;
 
--- Hard delete of a fully populated workspace (C10): every tenant table had a row above.
-create function test_helpers.rows_for_workspace(p_ws uuid) returns bigint
+-- Workspace deletion (C10 + owner decision F1): soft delete keeps only the billing records,
+-- detached from tenant content, until the retention period ends; then the tombstone goes.
+create function test_helpers.rows_for_workspace(p_ws uuid, p_except text[] default '{}') returns bigint
 language plpgsql set search_path = '' as $$
 declare
   r record;
@@ -437,18 +439,68 @@ declare
 begin
   for r in select c.relname from pg_class c join pg_namespace s on s.oid = c.relnamespace
            join pg_attribute a on a.attrelid = c.oid and a.attname = 'workspace_id'
-           where s.nspname = 'public' and c.relkind in ('r', 'p') loop
+           where s.nspname = 'public' and c.relkind in ('r', 'p') and not (c.relname = any (p_except)) loop
     execute format('select count(*) from public.%I where workspace_id = $1', r.relname) into n using p_ws;
     total := total + n;
   end loop;
   return total;
 end $$;
+create temp table retained(t text) on commit drop;
+insert into retained values ('billing_events'), ('payment_transactions'), ('invoices_records'), ('audit_logs'),
+  ('webhook_events');
 select cmp_ok(test_helpers.rows_for_workspace('10000000-0000-0000-0000-00000000000a'), '>', 60::bigint,
   'fixture workspace has rows across the tenant tables');
-select lives_ok($$ delete from public.workspaces where id = '10000000-0000-0000-0000-00000000000a' $$,
-  'a fully populated workspace can be hard-deleted');
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+select is(test_helpers.attempt($$ select public.soft_delete_workspace('10000000-0000-0000-0000-00000000000a') $$),
+  'error:42501', 'clients cannot call soft_delete_workspace');
+reset role;
+
+select is(public.soft_delete_workspace('10000000-0000-0000-0000-00000000000a') ->> 'status', 'deleted',
+  'soft_delete_workspace deletes the workspace');
+select results_eq(
+  $$ select name, deleted_at is not null, status::text, logo_path is null,
+            retained_billing_identity ->> 'slug', purge_after::date
+     from public.workspaces where id = '10000000-0000-0000-0000-00000000000a' $$,
+  $$ values ('Deleted workspace'::text, true, 'pending_deletion'::text, true, 'ws-matrix-a'::text,
+             (now() + interval '1825 days')::date) $$,
+  'tombstone: anonymized, deleted, retained identity, purge after 5 years (setting)');
+select is(test_helpers.rows_for_workspace('10000000-0000-0000-0000-00000000000a', array(select t from pg_temp.retained)),
+  0::bigint, 'every tenant table except the retained billing records is purged');
+select results_eq(
+  $$ select (select count(*)::int from public.payment_transactions where workspace_id = '10000000-0000-0000-0000-00000000000a'),
+            (select count(*)::int from public.billing_events where workspace_id = '10000000-0000-0000-0000-00000000000a'),
+            (select count(*)::int from public.invoices_records where workspace_id = '10000000-0000-0000-0000-00000000000a') $$,
+  $$ values (1, 1, 1) $$, 'billing_events, payment_transactions and invoices_records are kept');
+select results_eq(
+  $$ select (select subscription_id is null from public.payment_transactions where workspace_id = '10000000-0000-0000-0000-00000000000a'),
+            (select subscription_id is null from public.billing_events where workspace_id = '10000000-0000-0000-0000-00000000000a'),
+            (select usage_period_id is null and period_start is not null and period_end is not null
+               from public.invoices_records where workspace_id = '10000000-0000-0000-0000-00000000000a') $$,
+  $$ values (true, true, true) $$, 'retained billing records are detached (invoice period kept as a snapshot)');
+select results_eq(
+  $$ select provider::text, count(*)::int from public.webhook_events
+     where workspace_id = '10000000-0000-0000-0000-00000000000a' group by provider $$,
+  $$ values ('paypal'::text, 1) $$, 'channel webhook payloads are purged; PayPal events stay as billing evidence');
+select is((select count(*)::int from vault.decrypted_secrets where decrypted_secret = 'matrix-test-token'), 0,
+  'the channel token is removed from Vault');
+select ok(exists (select 1 from public.audit_logs where action = 'workspace.soft_deleted'
+                  and entity_id = '10000000-0000-0000-0000-00000000000a'), 'the deletion is audit-logged');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+select is((select count(*)::int from public.payment_transactions), 0,
+  'former members can no longer read the retained billing records');
+reset role;
+select is(public.soft_delete_workspace('10000000-0000-0000-0000-00000000000a') ->> 'status', 'already_deleted',
+  'soft delete is idempotent');
+select is(public.purge_deleted_workspaces(), 0, 'nothing is purged before the retention period ends');
+update public.workspaces set purge_after = now() - interval '1 second' where id = '10000000-0000-0000-0000-00000000000a';
+select is(public.purge_deleted_workspaces(), 1, 'the tombstone is purged after the retention period');
 select is(test_helpers.rows_for_workspace('10000000-0000-0000-0000-00000000000a'), 0::bigint,
-  'no tenant row survives the deletion');
+  'retained billing records are removed with the tombstone');
+select ok(exists (select 1 from public.audit_logs where action = 'workspace.soft_deleted' and workspace_id is null),
+  'audit rows survive the final purge, detached');
 
 select * from finish();
 rollback;
