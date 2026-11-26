@@ -1,5 +1,8 @@
 # MASTER BUILD PROMPT — AI Customer-Service CRM SaaS (Full Build, All Phases)
 
+> Reconciled with the Phase 01 work on 2026-11-26 (`docs/DECISIONS.md` §E). Notes marked
+> _[Reconciled: Ex]_ show where existing tested work was kept and why.
+
 ## 0. ROLE & MISSION
 You are a Principal Software Architect + Senior Full-Stack Engineer + Database Architect + AI Systems Engineer + Security Engineer.
 Build a production-ready, multi-tenant AI customer-service CRM SaaS end-to-end: architecture, database, backend, frontend, AI engine, integrations, billing, tests, and deployment configuration.
@@ -27,7 +30,7 @@ Target market: Gulf first, international later. UI: Arabic + English.
 - Monorepo: pnpm workspaces (+ Turborepo optional).
 - Frontend: React + Vite + TypeScript (strict) + Tailwind + shadcn/ui + TanStack Query + React Router + React Hook Form + Zod + Recharts. Premium, realistic, advanced UI.
 - i18n: i18next, Arabic + English, full RTL/LTR, user-switchable, persisted per user. Logical CSS properties (ms/me, ps/pe). Arabic font: IBM Plex Sans Arabic or similar; English: Inter.
-- Backend: Supabase (PostgreSQL 15+, Auth, RLS, Storage, Realtime, pgvector, Supabase Queues/pgmq, pg_cron) + Supabase Edge Functions (Deno, TypeScript).
+- Backend: Supabase (PostgreSQL 15+, Auth, RLS, Storage, Realtime, pgvector, Postgres `jobs` table queue, pg_cron) + Supabase Edge Functions (Deno, TypeScript). _[Reconciled: E1. A custom `jobs` table (FOR UPDATE SKIP LOCKED, exponential backoff, `dead` state, admin retry) replaces pgmq. It was already built and tested in P1.]_
 - AI generation: Anthropic Claude via provider abstraction (fast model for classification, stronger model for replies; configurable per plan/bot). Use prompt caching.
 - Embeddings: Voyage AI multilingual via embeddings abstraction (OpenAI embeddings as alternative adapter).
 - Email: Resend.
@@ -99,7 +102,7 @@ Core tables (merge/split if justified, document why):
 - business_profiles (description, contact, social links, custom_ai_instructions, tone)
 - branches (name, address, geo, phone, timezone)
 - working_hours (branch_id/workspace_id, weekday, open, close, is_closed) + holiday overrides
-- catalog_categories, catalog_items (name_ar, name_en, description, price, currency, availability, attributes JSONB, image path)
+- catalog_categories, catalog_items (name as jsonb {"ar","en"} _[Reconciled: E9, CLAUDE.md localized-content rule]_, description, price, currency, availability, attributes JSONB, image path)
 - faqs (question, answer, language, tags)
 - policies (type: delivery/refund/reservation/other, content)
 - kb_sources (type: profile/faq/catalog/policy/file/manual, status, last_synced_at)
@@ -107,26 +110,26 @@ Core tables (merge/split if justified, document why):
 - kb_chunks (document_id, content, language, token_count, embedding vector(n), metadata) + HNSW index
 - bots (name, branch_id, status: draft/testing/ready/active/paused, language_mode, public_key unique, readiness_score)
 - bot_configs (model routing, temperature, max_tokens, fallback_message, handoff_rules, greeting, persona, versioned)
-- ai_providers / ai_model_configs (platform-level catalog of providers/models + cost per token)
-- channels (bot_id, type: whatsapp/messenger/instagram/widget, status: not_connected/pending/connected/error/disabled, connection_mode: manual/oauth, external_ids JSONB)
+- ai_model_profiles / ai_model_prices (platform-level model routing profiles per plan/bot + cost per token) _[Reconciled: E9. Tested in P1 and holds the A15 routing; replaces ai_providers / ai_model_configs.]_
+- channels (bot_id, type: whatsapp/messenger/instagram/widget, status: not_connected/pending/connected/error/disabled, connection_mode: automatic (widget)/manual/oauth, external_ids JSONB)
 - channel_credentials (channel_id, encrypted token via pgsodium/Vault, scopes, expires_at) — NEVER readable by client roles
 - channel_connection_requests (channel_type, submitted data, status, admin notes, fee_paid)
-- widget_settings (bot_id, allowed_domains[], theme, position, launcher text ar/en, installed_verified_at)
+- widget_settings (bot_id, allowed_domains[] _(P1 uses exact `allowed_origins`; pending owner OK, DECISIONS E9)_, theme, position, launcher text ar/en, installed_verified_at)
 - customers (workspace_id, display_name, phone, email, channel identities, tags, notes, first_seen, last_seen)
 - customer_identities (customer_id, channel_type, external_user_id, unique(workspace_id, channel_type, external_user_id))
 - conversations (bot_id, channel_id, customer_id, status: open/pending/closed, handler: ai/human, assigned_to, last_message_at, last_message_preview)
 - messages (conversation_id, direction: inbound/outbound, sender: customer/ai/agent/system, content, content_type, external_message_id, delivery_status, ai_run_id) + unique(channel_id, external_message_id)
-- ai_runs (message_id, model, prompt_tokens, completion_tokens, cached_tokens, latency_ms, cost_usd, retrieved_chunk_ids, status, error)
+- ai_runs (message_id, model, prompt_tokens, completion_tokens, cached_tokens, latency_ms, cost_micros _[Reconciled: E9, integer money rule]_, retrieved_chunk_ids, status, error)
 - question_classifications (message_id, category: menu_products/reservations/prices/working_hours/services/complaints/orders/other, confidence)
-- orders (customer_id, conversation_id, branch_id, status, items JSONB, subtotal, delivery_fee, total, currency, type: delivery/pickup/dine_in, address, notes, source)
+- orders (customer_id, conversation_id, branch_id, status, items in an order_items table _[Reconciled: E9, P15 server-side prices per line]_, subtotal, delivery_fee, total, currency, type: delivery/pickup/dine_in, address, notes, source)
 - reservations (customer_id, branch_id, party_size, reserved_at, status, notes)
 - webhook_events (provider, event_id, signature_valid, payload, status: received/processed/failed/ignored, attempts, unique(provider, event_id))
 - analytics_events (append-only, partitioned by month) + analytics_daily rollup (workspace_id, date, messages_in, messages_out, conversations, orders, reservations, avg_response_ms, per-category counts)
 - bot_tests, bot_test_cases, bot_test_results (question, expected facts, actual, pass/fail, score)
-- subscription_plans (code, name, price_monthly, price_yearly, limits JSONB, features JSONB, is_public) — DATA-DRIVEN
-- subscriptions (workspace_id, plan_id, provider: paypal/manual, provider_subscription_id, status: trialing/active/past_due/grace/canceled/expired/suspended, period_start, period_end, cancel_at_period_end)
+- plans (code, name, is_public, trial) + plan_prices (interval month/year, amount, currency) + entitlement_definitions / plan_entitlements / workspace_entitlement_overrides (limits and features by key) — DATA-DRIVEN _[Reconciled: E9. Tested in P1; replaces subscription_plans with limits/features JSONB. CLAUDE.md requires entitlements asked for by key.]_
+- subscriptions (workspace_id, plan_id, provider: paypal/manual, provider_subscription_id, status: trialing/active/past_due/grace/canceled/expired/suspended (+ pending_activation, pending owner OK, DECISIONS E9), period_start, period_end, cancel_at_period_end)
 - usage_periods (workspace_id, period_start, period_end, ai_replies_included, ai_replies_used, overage_units)
-- usage_records (append-only, workspace_id, type: ai_reply, quantity, ai_run_id, idempotency_key unique, occurred_at)
+- usage_events (append-only reserve/release ledger, workspace_id, usage_period_id, kind: ai_reply_reserved/ai_reply_released, quantity ±1, ai_run_id, idempotency_key unique, created_at) _[Reconciled: E9. Tested in P1 behind consume_ai_reply/release_ai_reply; replaces usage_records.]_
 - billing_events (append-only audit of every billing state change)
 - payment_transactions (provider, provider_txn_id unique, amount, currency, status, type: subscription/one_time/manual/refund, raw)
 - invoices_records (manual invoices for overage, status)
@@ -137,7 +140,7 @@ Deliver Mermaid ERD in docs/DATABASE.md.
 
 ## 7. SECURITY
 - RLS ON for every table. Policies via helper functions: is_workspace_member(ws), has_workspace_role(ws, roles[]), is_platform_admin().
-- Client never touches credentials, webhook_events, usage_records writes, billing writes, ai_runs writes — service role only via edge functions.
+- Client never touches credentials, webhook_events, usage_events writes, billing writes, ai_runs writes — service role only via edge functions.
 - Tokens encrypted at rest (Supabase Vault/pgsodium).
 - Webhook signature verification (Meta X-Hub-Signature-256 with app secret; PayPal verify-webhook-signature). Reject invalid.
 - Idempotency: webhook_events unique(provider,event_id); messages unique external id; usage idempotency_key.
@@ -150,15 +153,15 @@ Deliver Mermaid ERD in docs/DATABASE.md.
 - Prompt-injection defenses: business instructions and KB content treated as data; system prompt guardrails; no tool can access other workspaces.
 
 ## 8. MESSAGE PIPELINE (async)
-Inbound (any channel) → channel webhook/gateway → verify signature → store webhook_event (idempotent) → normalize via channel adapter to NormalizedInboundEvent {workspace_id, bot_id, channel_id, external_user_id, external_message_id, text, attachments, timestamp} → upsert customer + identity → upsert conversation → insert inbound message → enqueue job (pgmq) → return 200 fast.
+Inbound (any channel) → channel webhook/gateway → verify signature → store webhook_event (idempotent) → normalize via channel adapter to NormalizedInboundEvent {workspace_id, bot_id, channel_id, external_user_id, external_message_id, text, attachments, timestamp} → upsert customer + identity → upsert conversation → insert inbound message → enqueue job (Postgres `jobs` table) → return 200 fast.
 ai-worker: dequeue → check subscription/usage limits → if conversation handler=human, skip AI (notify agents) → run AI engine → insert outbound message → send via channel adapter → record ai_run + usage_record (idempotent) → classification + intent → update conversation preview → emit analytics_event → Realtime pushes to dashboard.
-Retries with exponential backoff, dead-letter queue, visible failure state in UI.
+Retries with exponential backoff, dead-letter state (`jobs.status = dead`) with admin retry, visible failure state in UI.
 Synchronous: dashboard CRUD, auth, widget session creation. Asynchronous: AI replies, KB ingestion, embeddings, analytics rollups, emails, usage alerts.
 
 ## 9. AI ENGINE (packages/ai-engine, channel-agnostic)
 - Input: normalized event + conversation history. Output: reply text + actions.
 - Steps: load bot config + business context (cached) → language detection (reply in customer's language: Arabic MSA/Gulf/Egyptian or English) → classify question (fast model, structured output) → hybrid retrieval (pgvector similarity + keyword/full-text, filtered by workspace_id + bot) → build prompt (system guardrails, business instructions, working hours with timezone, retrieved facts, history window with summarization) → generate (Claude) → post-check → return.
-- Tools (structured tool use): get_catalog, check_working_hours, create_order, create_reservation, request_human_handoff, get_policy. Tools are workspace-scoped and validated.
+- Tools (structured tool use): get_catalog, check_working_hours, create_order, create_reservation, request_human_handoff, get_policy (+ confirm_order and capture_contact_details from P1, pending owner OK, DECISIONS E6). Tools are workspace-scoped and validated.
 - Missing info: never invent prices, hours, or policies. Say it doesn't know and offer handoff. Log as "knowledge gap" for the dashboard.
 - Human handoff: on request, complaint threshold, low confidence, or rule → handler=human, notify agents (in-app + email).
 - Provider abstraction: interface LLMProvider {generate, stream?, countTokens}; EmbeddingsProvider {embed}. Model routing per plan/bot.

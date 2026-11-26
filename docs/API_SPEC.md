@@ -184,7 +184,7 @@ Every admin mutation writes `audit_logs` (`actor_type = platform_admin`).
 ### 7.1 Meta — `webhooks-meta` (**needs verification** for every vendor detail below)
 
 - `GET` verification handshake: echo `hub.challenge` when `hub.verify_token` matches
-  `META_WEBHOOK_VERIFY_TOKEN`.
+  `META_VERIFY_TOKEN`.
 - `POST`: verify `X-Hub-Signature-256` = `sha256=` HMAC of the raw body with `META_APP_SECRET`
   **before** parsing; respond `200` quickly; process asynchronously.
 - Routing: WhatsApp events identify the connection by phone-number id in the change metadata;

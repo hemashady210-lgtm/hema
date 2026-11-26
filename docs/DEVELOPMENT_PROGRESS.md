@@ -1,8 +1,9 @@
 # Development Progress
 
-## Current phase: 01 — Architecture & Foundation · **Complete, decisions applied, awaiting go for Phase 02**
+## Current phase: P1 Foundation · **complete and reconciled with MASTER_PROMPT**. Next: **P2 Database & security** (not started; needs a plan + owner approval)
 
-Last updated: 2026-11-26 (tooling session)
+Last updated: 2026-11-26 (reconciliation session). Phases follow the 17-phase plan in
+`ROADMAP.md` (decision E3); "Phase 01" below is P1.
 
 ### Delivered in Phase 01
 
@@ -51,7 +52,7 @@ Supabase project was created and no migration was applied to one.
    it escalates to Sonnet 5.5 only for complaints, low-confidence answers or complex
    multi-step questions, and the escalation rate is logged in `ai_runs`. Opus 5.5 is
    Enterprise-only, by contract. An Arabic dialect eval gate (Gulf, Egyptian, MSA) is added
-   to Phase 04. Public prices are unchanged.
+   (now in P6, decision E3). Public prices are unchanged.
    - Applied in migrations `…000700` (escalation fields, `ai_model_prices`) and `…001200`
      (`standard` / `premium` profiles).
    - Cost per plan recomputed in `AI_ENGINE.md §9`: ≈ $2.1 / 1k replies at 15 % escalation.
@@ -81,25 +82,46 @@ Supabase project was created and no migration was applied to one.
   manually: clean file → pass; injected type + lint errors → both reported, exit 2.
 - Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
 
-### Next session: reconcile Phase 01 work with the new master prompt
+### Reconciliation session (2026-11-26), docs only
 
-Owner instruction: **reconcile, do not rebuild from zero.** The full comparison is in
-[`GAP_ANALYSIS.md`](./GAP_ANALYSIS.md): 11 conflicts needing an owner decision (queue choice,
-Meta OAuth/Embedded Signup timing, P1–P17 phase plan, naming, states, tools, function
-topology), the missing pieces grouped by phase, and what already matches. Nothing has been
-fixed yet. Start the next session by getting decisions on §1 of that file.
+The owner decided every `GAP_ANALYSIS.md` §1 item. They are recorded as **DECISIONS §E**
+(E0–E12). General rule E0: MASTER_PROMPT + ADDENDUM is the source of truth, except where existing
+tested work is equal or better.
 
-Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `main`.
-Setting `main` as the GitHub default branch is an owner action (repo Settings → General).
+- Done: `DECISIONS.md` (§E, A14/A15/P1/P2 rows), `MASTER_PROMPT.md` (inline _[Reconciled]_
+  notes), `ROADMAP.md` rewritten as P1–P17 with every gap item assigned, `GAP_ANALYSIS.md` (all
+  items resolved with a phase, and one correction about n8n env vars), `.env.example` (§21 names),
+  and the `vite-env.d.ts` typings to match. Two one-line env-name fixes in `API_SPEC.md` and
+  `ARCHITECTURE.md`.
+- **No migrations changed.** All schema work (renames, new tables, enums) is P2.
+- **Docs not yet in sync with §E:** ARCHITECTURE, DATABASE, API_SPEC, AI_ENGINE, BILLING,
+  CHANNELS, TESTING_STRATEGY, RISK_REGISTER. DECISIONS.md wins where they differ. The full sync
+  and the file renames (E11) are the first task of P2.
+- Verified: `pnpm lint`, `pnpm format:check`, `pnpm typecheck` pass.
 
-### Next: Phase 02 — Platform core (not started)
+Branches: `main` was created from the Phase 01 head (`55528fd`); PR #1 targets `main`. Setting
+`main` as the GitHub default branch is an owner action (repo Settings → General).
 
-See `docs/ROADMAP.md`. First steps once approved:
+### Needs owner action
 
-- Create the Supabase project (EU), `supabase init`, merge `config.toml`, `supabase db reset`,
-  and re-run pgTAP on the real stack.
-- Resolve "needs verification" items R-14 (sharing packages with Edge Functions) and the
-  Supabase key naming.
+- Set `main` as the default branch (GitHub Settings → General).
+- OK or veto for the items kept pending approval (DECISIONS §E9): `allowed_origins`,
+  `pending_activation`, tools `confirm_order` / `capture_contact_details`.
+- Create the Supabase project (EU, Frankfurt). P2 needs it.
+
+### Next: P2 Database & security (not started)
+
+Start by presenting a P2 plan for approval (see `ROADMAP.md` P2). It must include:
+
+- `supabase init`, merge `config.toml`, `supabase db reset` on the real local stack; re-run
+  pgTAP there.
+- Schema reconciliation per DECISIONS §E: renames (column-level list for approval), `grace`,
+  channel status, `connection_mode`, conversation `status`/`handler`, `channel_credentials`,
+  `retry_job()`, plus every missing table listed in `GAP_ANALYSIS.md` §2.
+- Whether to edit the 12 unapplied migrations in place or add new ones.
+- pgTAP for every table + role matrix in CI; doc sync + renames (E11).
+- Resolve "needs verification": R-14 (sharing packages with Edge Functions), Supabase key
+  naming (publishable vs anon), Google provider env names.
 
 ### Open "needs verification" items (tracked)
 

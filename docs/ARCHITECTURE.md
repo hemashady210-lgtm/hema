@@ -209,7 +209,7 @@ change. The worker dispatches each event:
 
 - **Resend** for transactional email (admin notified of a new channel request, manual payment
   request, usage 80 %/100 %, trial ending/ended, invitations).
-- **n8n** via a signed webhook (`N8N_WEBHOOK_SECRET`, HMAC-SHA256 of body) for side automations
+- **n8n** via a signed webhook (`N8N_SHARED_SECRET`, HMAC-SHA256 of body) for side automations
   (Slack/WhatsApp pings to the admin, daily/weekly reports).
   Failures retry independently per sink; the customer-message path never waits on either.
 
