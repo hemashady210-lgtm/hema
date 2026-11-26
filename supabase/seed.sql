@@ -1,0 +1,3 @@
+-- Local demo data for `supabase db reset` / `supabase db start` only.
+-- Never applied to the dev or production project (owner decision, P2).
+-- Reference data (plans, entitlements, model profiles, feature flags) is seeded by migrations.

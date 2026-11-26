@@ -20,5 +20,19 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
-  # Phase 02 adds: `supabase db start` + `supabase test db` (pgTAP RLS suite),
-  # `deno lint/test` for supabase/functions, and Playwright E2E on preview builds.
+
+  # Migrations + pgTAP RLS suite on the real Supabase local stack (P2 exit criterion).
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - name: Start Postgres and apply migrations + seed
+        run: supabase db start
+      - name: pgTAP suites
+        run: supabase test db
+      - name: plpgsql lint
+        run: supabase db lint --level error
+  # Later phases add `deno lint/test` for supabase/functions (P3+) and Playwright E2E (P3/P16).
