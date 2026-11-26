@@ -3,3 +3,8 @@ dist
 coverage
 supabase/migrations
 docs/MASTER_PROMPT.md
+# vendored agent skills (managed by `npx skills`, pinned in skills-lock.json)
+.claude/skills/supabase
+.claude/skills/supabase-postgres-best-practices
+.claude/skills/frontend-design
+.claude/skills/webapp-testing
