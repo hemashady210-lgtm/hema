@@ -3,10 +3,10 @@
 ## 0. ROLE & MISSION
 You are a Principal Software Architect + Senior Full-Stack Engineer + Database Architect + AI Systems Engineer + Security Engineer.
 Build a production-ready, multi-tenant AI customer-service CRM SaaS end-to-end: architecture, database, backend, frontend, AI engine, integrations, billing, tests, and deployment configuration.
-Work through all phases in order. Stop after EACH phase and wait for my explicit approval before starting the next one (CLAUDE.md wins over this prompt). Within a phase, work autonomously and stop ONLY for blockers that require me (credentials, paid accounts, external approvals, irreversible actions).
+Work through the phases in order, ONE PHASE PER SESSION. At the start of each phase, write a plan and wait for my approval before building. Never start the next phase without my explicit approval (CLAUDE.md wins over this prompt). Within an approved phase, work autonomously and stop ONLY for blockers that require me (credentials, paid accounts, external approvals, irreversible actions).
 
 ## 1. OPERATING RULES (MANDATORY)
-- Approval gate: CLAUDE.md wins wherever it and this prompt differ. At the end of EACH phase, update DEVELOPMENT_PROGRESS.md and the draft PR, then stop and wait for my approval before starting the next phase.
+- Approval gate (CLAUDE.md wins wherever it and this prompt differ): one phase per session. Start each phase by presenting a plan and waiting for my approval. At the end of the phase, update DEVELOPMENT_PROGRESS.md and the draft PR, then stop. Never start the next phase without my explicit approval.
 - Work on a feature branch. Commit after every milestone with clear messages. Keep a draft PR open and update its description with progress.
 - Before each phase: read CLAUDE.md and docs/DEVELOPMENT_PROGRESS.md. After each phase: update DEVELOPMENT_PROGRESS.md (done / in-progress / pending / blockers / known issues / latest verified working state).
 - Never claim something works unless you ran it and it passed. Mark untested items "UNVERIFIED".
@@ -224,103 +224,57 @@ Common: each channel implements ChannelAdapter {verifyWebhook, parseInbound, sen
 ### 12.12 Notifications center (in-app) + email.
 
 ## 13. AI PLAYGROUND & READINESS
-- Chat with the bot in sandbox (not billed, separately rate-limited, marked as test).
-- Show retrieved sources per answer, classification, latency, tokens.
+- Sandbox chat (not billed, separately rate-limited, marked as test). Show retrieved sources, classification, latency, tokens per answer.
 - Auto-generated test suite from KB (hours, prices, policies, FAQ) + custom test cases with expected facts.
-- Readiness checklist (weighted score; bot can't be "ready" below threshold):
-  1. Business profile complete
-  2. Working hours set
-  3. ≥1 knowledge source ready, 0 failed ingestions
-  4. Catalog present (if category requires)
-  5. Test suite pass rate ≥ 85%
-  6. No hallucinated price/hour in tests (fact check vs DB)
-  7. Fallback + handoff configured (if plan allows)
-  8. ≥1 channel connected and health check passed
-  9. Error-handling test (simulated AI provider failure → fallback message sent)
-- Generating a reply alone never counts as ready.
+- Weighted readiness score; bot cannot be "ready" below threshold. Checks: profile complete; working hours set; ≥1 KB source ready and 0 failed ingestions; catalog present if category requires; test pass rate ≥85%; no hallucinated price/hour (fact-check vs DB); fallback + handoff configured if plan allows; ≥1 channel connected with passing health check; simulated AI-provider failure sends fallback message. Generating a reply alone never counts as ready.
 
 ## 14. BILLING
-### Plans (seeded in subscription_plans; data-driven)
-- Billable unit: AI-generated reply. Inbound messages free. Playground free.
-- Starter $39/mo: 1,000 AI replies, 1 bot, 1 user, Widget + 1 channel, basic analytics, no orders/reservations, no handoff. Hard stop + upgrade prompt.
-- Growth $99/mo: 5,000 AI replies, 2 bots, 3 users, all channels, advanced analytics + classification, orders/reservations, handoff. Overage $10/1,000 replies (tracked automatically, invoiced manually in v1).
+- Plans are DB rows. Billable unit = AI-generated reply. Inbound messages and playground are free.
+- Starter $39/mo: 1,000 replies, 1 bot, 1 user, Widget + 1 channel, basic analytics, no orders/reservations/handoff, hard stop at limit + upgrade prompt.
+- Growth $99/mo: 5,000 replies, 2 bots, 3 users, all channels, advanced analytics + classification, orders/reservations, handoff, overage $10 per 1,000 (tracked automatically, invoiced manually in v1).
 - Enterprise from $299/mo: custom limits, usage-based, multi-branch, API access, unlimited users, manual contracts.
-- Free trial: 7 days, 100 AI replies, Widget only.
-- Annual: price_yearly = 10 × monthly.
-- One-time Meta channel connection fee: $49/channel (PayPal one-time or manual). Refundable if connection cannot be completed.
-- Usage alerts at 80% and 100% (in-app + email).
-### Subscription states
-trialing → active → past_due → grace (3 days) → suspended; canceled (until period end) → expired. Trial end/limit: AI stops, configurable fallback message sent, dashboard read-only + upgrade prompt, data retained 30 days.
-### PayPal
-- Products/Plans created via idempotent setup script. Subscriptions API for recurring; Orders API for one-time fees.
-- Webhooks: subscription activated/updated/cancelled/suspended/payment failed, payment completed, refunds (verify exact event names). Signature verification. Idempotent. Every state change → billing_events.
-- Sandbox first; live via env switch.
-### Manual payments
-- "Pay another way" → request + admin notified → admin records payment in Super Admin → subscription activated with period dates → audit logged.
-### VAT and PDF invoices deferred; keep full billing history.
+- Trial 7 days, 100 replies, widget only. Annual = 10x monthly. Meta connection fee $49/channel (PayPal one-time or manual), refundable if connection fails. Alerts at 80% and 100%.
+- States: trialing → active → past_due → grace (3 days) → suspended; canceled (until period end) → expired. On trial end/limit: AI stops, fallback message sent, dashboard read-only + upgrade prompt, data kept 30 days.
+- PayPal: idempotent setup script for products/plans; Subscriptions API (recurring) + Orders API (one-time); webhook signature verification; idempotent processing; every state change → billing_events. Sandbox first. Verify event names in official docs.
+- Manual path: "Pay another way" → request + admin notified → admin records payment → subscription activated → audited.
+- VAT and PDF invoices deferred; keep full billing history.
 
 ## 15. SUPER ADMIN (/admin, platform admins only)
-- Workspaces: list/search, details, read-only impersonation (audited), suspend/reactivate.
-- Subscriptions: manual activate/extend/change plan, record manual payment, overage invoices.
-- Connection requests queue: enter credentials, run health check, mark connected/failed, refund flag.
-- Plans editor. Platform metrics (MRR, active workspaces, AI cost vs revenue, error rates).
-- Feature flags, audit log viewer, dead-letter viewer with retry.
+Workspaces (search, details, read-only impersonation audited, suspend/reactivate); subscriptions (manual activate/extend/change plan, record payments, overage invoices); connection requests queue (enter credentials, health check, mark connected/failed, refund flag); plans editor; platform metrics (MRR, active workspaces, AI cost vs revenue, error rates); feature flags; audit log; dead-letter jobs with retry.
 
 ## 16. NOTIFICATIONS & n8n
-- Resend emails (ar/en): verify email, invite, password reset, usage 80/100%, trial ending, payment failed, connection request received/connected, handoff alert.
-- n8n workflows (export JSON to /n8n): new connection request → notify admin; daily platform summary; monthly report per workspace. Triggered via DB webhook or edge function with shared secret.
+- Resend templates (ar/en): verify email, invite, password reset, usage 80/100%, trial ending, payment failed, connection request received/connected, handoff alert.
+- n8n (export JSON to /n8n): new connection request → notify admin; daily platform summary; monthly workspace report. Triggered by DB webhook or edge function with shared secret.
 
-## 17. API (supabase/functions/api, documented in docs/API.md)
-Per endpoint: method, path, auth, role, Zod request/response (packages/shared), errors, DB ops.
-Modules: auth/session, workspaces, members/invitations, business profile, branches, hours, catalog, faqs, policies, kb, bots, bot-configs, channels/connect requests, widget settings, conversations, messages, customers, orders, reservations, analytics, playground/tests, plans, subscriptions, checkout, usage, billing history, notifications, admin/*.
-Public: /widget/*, /webhooks/meta, /webhooks/paypal.
-Error envelope {error:{code,message,details}}, cursor pagination, filtering, sorting. Simple reads may use supabase-js under RLS; writes with business rules go through the API.
+## 17. API
+REST via supabase/functions/api, documented in docs/API.md. Per endpoint: method, path, auth, role, Zod request/response schemas (packages/shared), errors, DB operations.
+Modules: auth/session, workspaces, members/invitations, business profile, branches, hours, catalog, faqs, policies, kb, bots, bot-configs, channels/connect requests, widget settings, conversations, messages (agent send, handoff), customers, orders, reservations, analytics (overview, daily, classifications, knowledge gaps), playground/tests, plans, subscriptions, checkout, usage, billing history, notifications, admin/*.
+Public: /widget/*, /webhooks/meta, /webhooks/paypal. Error envelope {error:{code,message,details}}, cursor pagination. Simple reads may use supabase-js under RLS; business-rule writes go through the API.
 
 ## 18. ANALYTICS
-- analytics_events append-only (monthly partitions) → analytics_daily rollups every 15 min + nightly reconciliation. Dashboard reads rollups only.
-- Retention: 12 months default (configurable per plan), nightly cleanup; per-workspace export (JSON/CSV) and full delete.
+analytics_events append-only (monthly partitions) → rollups into analytics_daily every 15 min + nightly reconciliation. Dashboard reads rollups only. Response time = inbound→outbound. Retention 12 months default (per plan), nightly cleanup, per-workspace export and delete.
 
 ## 19. DESIGN SYSTEM
-- Dark-first, premium, minimal, information-dense. Apple HIG principles + Stripe/Linear dashboards.
-- Brand: dark luxury, Royal Blue primary + electric blue accents; semantic colors; light mode supported.
-- Tokens: colors, typography (ar + en), 4px spacing, radii, elevation, blur materials, motion.
-- Skeletons, guided empty states, error states with retry, toasts, ⌘K palette, sticky-header tables, accessible charts.
-- Layout: collapsible sidebar, top bar (workspace switcher, search, language toggle, notifications, user menu), responsive to mobile.
-- WCAG 2.1 AA, keyboard nav, focus rings, aria, reduced motion.
+Dark-first premium minimal, Apple HIG principles + Stripe/Linear dashboards. Royal Blue primary + electric blue accents, light mode supported. Tokens: colors, ar/en type scale, 4px spacing, radii, elevation, blur materials, motion. Skeletons, empty and error states, toasts, ⌘K palette, sticky-header tables, accessible charts. Collapsible sidebar + top bar (workspace switcher, search, language, notifications, user). Responsive. WCAG 2.1 AA, keyboard nav, reduced motion. Product name in ONE config file.
 
 ## 20. TESTING
-- Unit: ai-engine, adapters, billing, metering, validators.
-- RLS: every table, cross-tenant read/write denied; role matrix.
-- API: happy path + auth fail + validation fail + cross-tenant attempt per endpoint.
-- Webhooks: valid/invalid signature, duplicate processed once, out-of-order statuses.
-- AI eval: golden set (ar + en + dialects): correct prices/hours from DB, no invention, handoff triggers, language matching.
-- Billing: limits, hard stop, overage, trial expiry, PayPal state machine, duplicate events, manual activation.
-- E2E (Playwright): signup → onboarding → KB → bot → playground → widget install → widget chat → inbox → handoff → order → upgrade.
-- Performance: webhook ack < 500ms p95; widget first reply < 6s p95; dashboard overview < 1.5s.
-- Failure recovery: AI provider down, queue retry, dead-letter, send failure.
-Gates: zero cross-tenant leaks, zero duplicate usage records, zero duplicate processed webhooks.
+Unit (ai-engine, adapters, billing, metering, validators); RLS per table + role matrix; API (happy, auth fail, validation fail, cross-tenant); webhooks (signature, duplicates, out-of-order); AI eval golden set ar/en (prices/hours from DB, no invention, handoff, language match, dialects); billing (limits, hard stop, overage, trial, PayPal state machine, duplicates, manual activation); Playwright E2E full journey; performance (webhook ack <500ms p95, widget first reply <6s p95, overview <1.5s); failure recovery. Gates: zero cross-tenant leaks, zero duplicate usage records, zero duplicate processed webhooks.
 
 ## 21. DEPLOYMENT & ENV
-- Environments: local, staging (Supabase dev), production.
-- Cloudflare Pages via GitHub (auto deploy). Widget on CDN with versioned URLs.
-- Edge functions via Supabase CLI in CI (staging on merge to main; production on tag). Migrations via CI with review.
-- .env.example: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, VOYAGE_API_KEY, RESEND_API_KEY, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID, PAYPAL_ENV, META_APP_ID, META_APP_SECRET, META_VERIFY_TOKEN, META_CONFIG_ID, WIDGET_SIGNING_SECRET, N8N_WEBHOOK_URL, N8N_SHARED_SECRET, APP_URL, WIDGET_CDN_URL.
-- Structured JSON logs (request_id, workspace_id), optional Sentry, health endpoint, AI cost view in admin.
+Local, staging (Supabase dev), production. Cloudflare Pages auto-deploy from GitHub; widget on CDN with versioning. Edge functions via Supabase CLI in CI (staging on main, prod on tag). Reviewed, non-destructive migrations. .env.example placeholders: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, VOYAGE_API_KEY, RESEND_API_KEY, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID, PAYPAL_ENV, META_APP_ID, META_APP_SECRET, META_VERIFY_TOKEN, META_CONFIG_ID, WIDGET_SIGNING_SECRET, N8N_WEBHOOK_URL, N8N_SHARED_SECRET, APP_URL, WIDGET_CDN_URL. Structured JSON logs, health endpoint, AI cost view in admin.
 
 ## 22. BUILD PHASES
-P1 Foundation · P2 Database & security · P3 Auth & workspaces + shell + i18n + tokens · P4 Onboarding & business data · P5 Knowledge base · P6 AI engine · P7 Message pipeline · P8 Website widget (first live channel) · P9 Inbox & CRM · P10 Dashboard & analytics · P11 Playground & readiness · P12 Billing · P13 Meta channels (manual + flagged OAuth/Embedded Signup v4) · P14 Super Admin · P15 Notifications/emails/n8n · P16 Hardening (E2E, perf, recovery, security, a11y) · P17 Deployment configs + runbook.
-Strict: P2 before data features; P6 before P7; P12 before production.
+P1 Foundation · P2 Database & security · P3 Auth, workspaces, app shell, i18n, tokens · P4 Onboarding & business data · P5 Knowledge base · P6 AI engine (+ Arabic dialect eval) · P7 Message pipeline · P8 Website widget (first live channel) · P9 Inbox & CRM · P10 Dashboard & analytics · P11 Playground & readiness · P12 Billing · P13 Meta channels (manual + flagged OAuth/Embedded Signup v4) · P14 Super Admin · P15 Notifications, emails, n8n · P16 Hardening (E2E, perf, security, a11y) · P17 Deployment configs + runbook.
+Each phase ends with passing acceptance criteria, commit, push, progress update.
 
 ## 23. CLAUDE.md RULES
-Read DEVELOPMENT_PROGRESS.md and relevant docs first; follow architecture and design system; never invent API behavior; never claim untested functionality works; update progress after meaningful work; keep docs in sync; never commit secrets; preserve tenant isolation.
+Read DEVELOPMENT_PROGRESS.md and relevant docs first; follow architecture + design system; never invent API behavior; never claim untested work works; update progress; keep docs in sync; never commit secrets; preserve tenant isolation.
 
-## 24. EXTERNAL DEPENDENCIES (docs/RISKS.md)
-- Owner credentials: Supabase, Anthropic, Voyage, Resend + domain, PayPal (sandbox/live), Cloudflare, DNS, GitHub secrets.
-- External approval: Meta Business verification (no commercial registration yet → Embedded Signup blocked; manual mode is the workaround), Meta App Review, WhatsApp templates, PayPal account review.
-- Locally testable with mocks/sandboxes except real Meta delivery.
+## 24. EXTERNAL DEPENDENCIES
+Owner credentials (Supabase, Anthropic, Voyage, Resend + domain, PayPal sandbox/live, Cloudflare, DNS, GitHub secrets). External approvals (Meta Business verification — owner has no commercial registration, so manual mode is the workaround; Meta App Review; WhatsApp templates; PayPal review). Paid services. Everything else testable locally with mocks.
 
 ## 25. DEFINITION OF DONE
-All phases done or blocked with reason; CI green; RLS suite green; widget works end-to-end in staging with real AI; billing works in PayPal sandbox + manual; Meta manual mode works once credentials entered, OAuth behind flags; docs match code; final PR report: verified / unverified / blocked / owner next steps / env vars.
+All phases complete or blocked with reason; CI green incl. RLS suite; widget E2E in staging with real AI; billing E2E in PayPal sandbox + manual; Meta manual mode works with credentials, OAuth behind flags; docs match code; final PR report: verified / unverified / blocked / owner next steps / env vars.
 
 ADDENDUM (approved decisions):
 - Model routing: default Haiku 5.5 for all plans (replies + classification). Auto-escalate to Sonnet 5.5 only for complaints, low-confidence, or complex multi-step questions; log escalation rate. Opus 5.5 = Enterprise only by contract. Model per plan is a DB row.
