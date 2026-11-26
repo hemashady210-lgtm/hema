@@ -116,11 +116,11 @@ export const ar: Translation = {
       signIn: 'سجّل الدخول',
       strength: {
         label: 'قوة كلمة المرور',
-        0: 'قصيرة جدًا',
-        1: 'ضعيفة',
-        2: 'مقبولة',
-        3: 'جيدة',
-        4: 'قوية',
+        tooShort: 'قصيرة جدًا',
+        weak: 'ضعيفة',
+        fair: 'مقبولة',
+        good: 'جيدة',
+        strong: 'قوية',
       },
     },
     checkEmail: {

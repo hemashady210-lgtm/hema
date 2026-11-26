@@ -142,3 +142,31 @@
     background-position: -200% 0;
   }
 }
+
+/* Auth brand panel: one staggered reveal (DESIGN_SYSTEM §6, emphasized). Reduced motion keeps
+   only a short fade (global rule above). */
+@keyframes brand-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.brand-reveal {
+  opacity: 0;
+  animation: brand-reveal var(--duration-emphasized) var(--ease-emphasized) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-reveal {
+    transform: none;
+    animation-name: fade-only;
+  }
+}
+@keyframes fade-only {
+  to {
+    opacity: 1;
+  }
+}

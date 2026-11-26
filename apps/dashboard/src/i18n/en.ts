@@ -115,11 +115,11 @@ export const en = {
       signIn: 'Sign in',
       strength: {
         label: 'Password strength',
-        0: 'Too short',
-        1: 'Weak',
-        2: 'Fair',
-        3: 'Good',
-        4: 'Strong',
+        tooShort: 'Too short',
+        weak: 'Weak',
+        fair: 'Fair',
+        good: 'Good',
+        strong: 'Strong',
       },
     },
     checkEmail: {
