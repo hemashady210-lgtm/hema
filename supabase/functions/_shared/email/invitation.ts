@@ -21,8 +21,18 @@ const ROLE_LABEL: Record<Locale, Record<InvitationEmailInput['role'], string>> =
  */
 export function safeDisplayName(value: string | null | undefined): string | null {
   if (!value) return null;
-  const cleaned = value
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+  const cleaned = Array.from(value)
+    .filter((ch) => {
+      const c = ch.codePointAt(0) ?? 0;
+      const control = c < 0x20 || (c >= 0x7f && c <= 0x9f);
+      const bidi =
+        c === 0x200e ||
+        c === 0x200f ||
+        (c >= 0x202a && c <= 0x202e) ||
+        (c >= 0x2066 && c <= 0x2069);
+      return !control && !bidi;
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);

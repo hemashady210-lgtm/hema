@@ -33,8 +33,10 @@ A custom domain (`api.<product>.com` via Cloudflare) can front these later.
   24 h return the original response.
 - **Pagination:** cursor-based — `?limit=50&cursor=<opaque>` → `{ "data": [...], "next_cursor": "…" | null }`.
 - **Rate limits** (initial values, tuned later): app 120 req/min/user; public API 600 req/min/key;
-  widget 30 msg/min/visitor and 600 msg/min/widget key. Responses include `RateLimit-*` headers
-  and `429` with `Retry-After`.
+  widget 30 msg/min/visitor and 600 msg/min/widget key. A refused request gets `429` with
+  `Retry-After`. (P3: `RateLimit-*` headers on successful responses are not sent yet.) P3
+  invitation caps: 30/h per user, 50/day per workspace, 5/day per recipient, 5 renewals/day per
+  link; preview 30/10 min per IP and 3,000/10 min overall.
 
 ### Error envelope
 

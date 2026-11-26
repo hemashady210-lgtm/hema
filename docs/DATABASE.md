@@ -4,10 +4,10 @@ Postgres 17 (Supabase) with RLS on **every** table and pgvector for retrieval.
 Source of truth: [`supabase/migrations/`](../supabase/migrations). Tests:
 [`supabase/tests/database/`](../supabase/tests/database). Names follow DECISIONS §E (E9).
 
-> **Validation status (P3, 2026-11-26).** All 17 migrations are applied to the Supabase dev
+> **Validation status (P3, 2026-11-26).** All 18 migrations are applied to the Supabase dev
 > project `ai-crm-dev` (Postgres 17.12, region `eu-west-1`) and recorded in
-> `supabase_migrations.schema_migrations`. The full pgTAP suite passes there (9 files,
-> **570/570**) and on the Supabase CLI local stack (570/570, `supabase db lint` clean). Real
+> `supabase_migrations.schema_migrations`. The full pgTAP suite passes there (10 files,
+> **602/602**) and on the Supabase CLI local stack (602/602, `supabase db lint` clean). Real
 > `auth.uid()`, default grants, Vault, the REST layer and (P3) the auth trigger with real
 > sign-ups were exercised. Applied migrations are frozen: changes go into new migration files.
 
@@ -32,6 +32,7 @@ Source of truth: [`supabase/migrations/`](../supabase/migrations). Tests:
 | `…20261126000100_p2_review_fixes`              | Review fixes (forward migration): race-safe limits, limit-leak guard, immutable `workspace_id`, entitling subscriptions, per-subscription usage periods, re-reservation after release, manual connect count, bot/file-source delete revoked, handoff gate, storage read policies removed, disconnect cleanup, hardening (privileges, size caps, paths, currency, i18n, FKs, queue ownership, retrieval)                                         |
 | `…20261126000200_retention_and_content_limits` | Owner decisions F1 + F3: soft delete (`soft_delete_workspace`, `purge_deleted_workspaces`, `workspaces.purge_after` / `retained_billing_identity`, invoice period snapshot, `billing_record_retention_days`), content limits `max_faqs` / `max_catalog_items` / `knowledge_files_max` + upload size triggers                                                                                                                                    |
 | `…20261126000300_p3_auth_workspaces`           | P3: profile auto-creation on sign-up (`private.handle_new_user`, name + locale from metadata as display data only) and email sync; `profiles.email` (read-only) + column update grants; invitation `email_status` / `locale` / `accepted_by` and `token_hash` no longer client-selectable; settings `max_trial_workspaces_per_user` (1) and `invitation_expiry_days` (7); service-role RPCs below; `private.rate_limit_hits` + `hit_rate_limit` |
+| `…20261126000400_p3_review_fixes`              | P3 review fixes: passwords set before email confirmation are cleared at confirmation (`auth.users` trigger, account-takeover fix); `accept_invitation` needs a writable workspace and an inviter who is still owner/admin; removing/demoting a member revokes their open invitations; `release_assignments` only touches open work                                                                                                              |
 
 `supabase/seed.sql` holds local demo data only (CLI local stack and CI); it is never applied to
 the dev or production project.

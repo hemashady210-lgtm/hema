@@ -110,12 +110,16 @@ production on tag) are P17.
   `RESEND_API_KEY` + `RESEND_FROM_EMAIL`. Inside functions the new-style `SUPABASE_SECRET_KEYS` /
   `SUPABASE_PUBLISHABLE_KEYS` are used first (F5); the CLI's local runtime (2.122.1) only injects
   the legacy keys, which are the fallback.
-- **Dev project state (2026-11-26):** `api` deployed (health + auth errors verified); no Edge
+- **Dev project state (2026-11-26):** 18 migrations, pgTAP 602/602; `api` redeployed with the
+  review fixes (health, auth errors and a service-role RPC path — invitation preview —
+  verified on the hosted runtime); no Edge
   Function secrets set, so invitation creation there returns `500 app_url_not_configured` until
   `APP_URL` is set (the dashboard is not hosted until P17).
 - **Hosted Auth settings to mirror `config.toml` (owner action, before staging use):** site URL
   and redirect URLs of the hosted dashboard, email confirmations on, minimum password length 8
-  with letters + digits, custom SMTP through Resend (the built-in Supabase SMTP only sends to the
+  with letters + digits, SMS sign-up off with confirmations on (no account enumeration),
+  "Confirm signup" / "Magic link" templates pointing at `{{ .ConfirmationURL }}` (PKCE, the
+  dashboard then asks for a password), custom SMTP through Resend (the built-in Supabase SMTP only sends to the
   project's team and is rate-limited), Google provider only when a client exists
   (`VITE_AUTH_GOOGLE_ENABLED=true` in the dashboard build).
 

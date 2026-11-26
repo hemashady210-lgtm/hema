@@ -1,12 +1,128 @@
 # Development Progress
 
-## Current phase: P2 Database & security · **complete — awaiting owner review**. P3 not started (needs a plan + owner approval)
+## Current phase: P3 Auth, workspaces, app shell, i18n, tokens · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
 
-Last updated: 2026-11-26 (P2 session). Phases follow the 17-phase plan in `ROADMAP.md` (E3).
-Branch `claude/phase-p2-database-security-sgovxe`. PR #2 (P2) merged into `main` on 2026-11-26;
-PR #3 carries the owner-decision follow-up (F1, F3).
+Last updated: 2026-11-26 (P3 session). Phases follow `ROADMAP.md` (E3). Branch
+`ccr-da8be7ff-ulmui2`, draft **PR #4** → `main`. PR #4 is stacked on **PR #3** (P2 follow-up, F1/F3),
+whose migration 0014 is already live on the dev project; merge #3 first.
 
-## P2 summary (latest verified working state)
+## P3 summary (latest verified working state)
+
+- **Supabase dev project `ai-crm-dev`**: **18 migrations** applied (0015 P3, 0016 P3 review fixes);
+  **pgTAP 602/602** there (10 suites); `api` Edge Function deployed with `--use-api` (health, auth
+  errors and a service-role RPC path verified on the hosted runtime). No users or workspaces on
+  the project (checked after every run).
+- **Local Supabase CLI stack (2.122.1)**: 602/602, `supabase db lint` clean; `api` integration
+  tests 2/2 against real Auth/PostgREST/RLS; Playwright journey ar + en passing with axe 0 critical.
+- **Unit/component**: Vitest shared 13, dashboard 136 (contrast, i18n parity, RTL, auth forms,
+  role-based UI, lint rule); Deno 37. `pnpm lint` (incl. `local/logical-css`), `format:check`,
+  `typecheck`, `test`, `deno lint/check` pass.
+- **CI** (PR #4): jobs `checks`, `db`, `functions`, `e2e` (local stack + integration + Playwright).
+- **Screenshots**: 152 WebP in `docs/screenshots/p3/` (19 screens × ar/en × dark/light ×
+  desktop/mobile) + private gallery https://claude.ai/artifact/NRFARA1DDFqq9syhrCgGhC
+
+### Done
+
+| Milestone | What                                                                                                                                                                                     | Commit                       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| M1        | Tooling: UI/test deps, `local/logical-css` ESLint rule, `config.toml` (auth, mail catcher, edge runtime, Google off), Deno CI job                                                        | `edcd339`                    |
+| —         | Merged the P2 follow-up branch (PR #3, migration 0014 already on the dev project)                                                                                                        | `8f10d66`                    |
+| M2        | Migration 0015: profile trigger + email sync, invitation email status, service-role RPCs (workspace, invitations, members, ownership), rate limiter; pgTAP suite 09 (88); applied to dev | `aea8e38`                    |
+| M3        | `api` Edge Function + `_shared` (auth, CORS, envelope, zod, rate limits, Resend adapter, bilingual invite email); Deno tests; **R-14 verified** (deploy bundles `packages/shared`)       | `bf1d485`                    |
+| M4        | Design system: tokens (4 AA fixes), fonts, materials, motion, i18n ar/en (typed parity), RTL/LTR switching, dark-first theming, shadcn-style primitives                                  | `8faf574`                    |
+| M5        | Auth pages (split layout + bilingual brand panel), session persistence, guards, safe redirects, Google gated                                                                             | `879d867`                    |
+| M6 + M7   | Create workspace, shell (sidebar, top bar, ⌘K, switcher, bell, user menu, mobile), settings, account; members & invitations UI, accept-invite page, role-based UI                        | `cabcc04`                    |
+| M8        | Playwright journey ar + en with axe, screenshot capture, CI `e2e`, screenshots                                                                                                           | `0bc8112`                    |
+| M9        | Docs sync; code-reviewer + security-reviewer; **all findings fixed** (migration 0016, sign-up flow, members UI, api hardening); suite 10 (32); final docs                                | `45dbe03`, `ee4fbf6` + final |
+
+Review results (details in `SECURITY.md §7a`): security — **1 high** (pre-registration account
+takeover, reproduced against GoTrue), 1 medium, 3 low → all fixed and regression-tested; code
+review — 4 important + 4 nits → all fixed.
+
+### Verified (ran and passed)
+
+- Sign up (email link → choose password) → verify via the local mail catcher → create workspace →
+  invite (email not configured → copyable link, real `not_configured` status) → second user signs
+  up from the link and accepts → agent sees the restricted view → AR/EN switch persists → leave.
+  Playwright, both languages, on the local stack.
+- Account-takeover fix against real GoTrue: attacker pre-registers with a password, owner
+  confirms via email link, attacker's password no longer signs in; admin-created confirmed users
+  keep their password.
+- Role rules end to end (owner never invitable/changeable/removable, no self role change, admin
+  manages admins/agents/viewers, owner-only transfer, old owner → admin, invitations die with the
+  inviter's rights, read-only workspace: no new access but removal/revoke allowed).
+- Trial: one trial workspace per user (`402 trial_limit_reached`), seats = members + open invites
+  (`402 plan_limit_reached`), member trigger final.
+- RLS reads from the dashboard (members, profiles of teammates, invitations without `token_hash`,
+  subscriptions for the trial badge, entitlements for seats, own notifications).
+- R-14: `supabase functions deploy --use-api` bundles `packages/*`; local `supabase start` serves it.
+- New-style keys (F5): local stack and dashboard use `sb_publishable_…`/`sb_secret_…`; functions
+  prefer `SUPABASE_SECRET_KEYS`, and the hosted `api` ran service-role RPCs.
+- Token contrast (every text/status token × every surface × both themes ≥ 4.5:1).
+
+### Not verified / known gaps
+
+- **Google sign-in end to end** (no OAuth client; button hidden unless `VITE_AUTH_GOOGLE_ENABLED`).
+- **Real Resend delivery** (no API key/domain): the `sent`/`failed` paths are tested with fakes only.
+- **Auth emails on a hosted project**: Supabase's default templates (English) + built-in SMTP;
+  bilingual templates and Resend SMTP are P15. The dashboard is not hosted until P17, so `APP_URL`
+  is not set on the dev project (invitation creation there returns `app_url_not_configured`).
+- Hosted GoTrue behaviour for unconfirmed re-sign-ups and the client-IP header = **needs
+  verification** (local GoTrue v2.197.0 verified).
+- Unconfirmed accounts are not purged yet (scheduler job, P7/P10).
+- `Idempotency-Key` storage for `api` and `RateLimit-*` headers on success are not implemented.
+- `pnpm db:test:local` (plain Postgres harness) was not run this session (no plain Postgres in
+  the sandbox); the CLI local stack was used instead.
+- The sandbox's TLS proxy blocks npm downloads inside the edge-runtime container, so local runs
+  here used host Deno (`pnpm dev:api`); CI uses the real edge runtime.
+- Bundle: one 820 kB JS chunk (243 kB gzip); route-level code splitting not done (perf is P16).
+- Arabic copy is a first draft for a native copywriter's review (DESIGN_SYSTEM §8).
+- Demo seed users still cannot sign in (random passwords, no identities) — local only.
+- Carried from P2: HNSW measurement (P5/P16), `consume_ai_reply` needs `ai_run_id` (P7),
+  partitions through Feb 2027 (P10), `rls_auto_enable()` on the dev project (needs verification).
+
+### Needs owner action
+
+1. **Revoke the Supabase personal access token** (Dashboard → Account → Access Tokens) and remove
+   the `api.supabase.com` network secret from this environment. It was used in P2 and again in P3
+   (migrations 0015/0016, pgTAP, `api` deploys). Create a new, scoped token only when a phase
+   needs it.
+2. Review and merge **PR #3** first, then **PR #4**.
+3. Resend: API key + verified sending domain → Edge Function secrets `RESEND_API_KEY`,
+   `RESEND_FROM_EMAIL` (and later custom SMTP for Auth emails).
+4. Google sign-in (optional): OAuth client → Auth provider settings + `VITE_AUTH_GOOGLE_ENABLED=true`.
+5. When the dashboard is hosted (P17): set `APP_URL` (and `ALLOWED_ORIGINS` if needed) on the
+   project, and mirror `config.toml` auth settings there (DEPLOYMENT §6).
+6. Arabic copy review by a native writer.
+7. Set `main` as the GitHub default branch (Settings → General), if not done yet.
+
+### Next: P4 Onboarding & business data (not started)
+
+Start with a P4 plan for approval. P3 leaves ready: auth + workspaces + members, the `api`
+function and `_shared` modules, the design system and shell, and the onboarding row created with
+every workspace (`workspace_onboarding`). P4 creates the first bot + widget channel (G1).
+
+### How to resume
+
+- Read this file, `DECISIONS.md` (§F, §G), `SECURITY.md` (§7a), `DEPLOYMENT.md` (§4–§6).
+- Local: `supabase start` → `apps/dashboard/.env.local` from `supabase status -o env` →
+  `pnpm dev:dashboard` (+ `pnpm dev:api` behind a TLS proxy) → `pnpm test`, `pnpm test:functions`,
+  `supabase test db`, Playwright `--project=journey` (DEPLOYMENT §4).
+- DB changes: new migration + pgTAP; dev project via `pnpm db:remote:migrate` / `db:remote:test`
+  with a valid token (DEPLOYMENT §3). Applied migrations are frozen.
+
+### Open "needs verification" items (tracked)
+
+Meta Graph API details · PayPal event names and plan revisions · Voyage models and Arabic quality ·
+Anthropic SDK in Deno · Supabase: pg_cron sub-minute schedules, Realtime broadcast authorization,
+signed upload URLs vs Storage RLS, `rls_auto_enable`, hosted GoTrue re-sign-up behaviour, client-IP
+header, Google user metadata (locale) · Deno PDF/DOCX extraction · legal retention rules. Resolved
+in P3: R-14 (CLI bundling of workspace packages, with `--use-api`), Resend send-email contract
+(docs, 2026-11-26), Edge Function auth headers and key env names (docs, 2026-11-26).
+
+## History
+
+### P2 Database & security (summary at the end of P2)
 
 - **Supabase dev project `ai-crm-dev`** (ref `jpzgdyzbhszyrvzcsljq`, `eu-west-1`, Postgres 17.12):
   **16 migrations applied** and recorded in `supabase_migrations.schema_migrations`; **pgTAP
@@ -17,7 +133,7 @@ PR #3 carries the owner-decision follow-up (F1, F3).
 - **Local harness** (`pnpm db:test:local`, plain Postgres 16 + stubs): 482/482.
 - `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` pass (no package tests yet).
 
-### Done
+#### Done
 
 | Milestone | What                                                                                                                                                                                                                        | Commit                                                      |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -34,7 +150,7 @@ Review results: security review — no critical/high; 5 medium, 4 low, hardening
 Code review — 12 important + nits → fixed; the two open decisions were taken by the owner (F1,
 F2) and F1/F3 are implemented. Details: `SECURITY.md §7`, `DECISIONS.md §F`.
 
-### Verified (ran and passed)
+#### Verified (ran and passed)
 
 - Every migration applies on the dev project, in CI (Supabase local stack) and locally.
 - Role matrix: every tenant table × select/insert/update/delete × owner/admin/agent/viewer/other
@@ -60,7 +176,7 @@ F2) and F1/F3 are implemented. Details: `SECURITY.md §7`, `DECISIONS.md §F`.
 - Supabase docs (checked 2026-11-26): key types + legacy key deprecation (early 2027), Google
   `config.toml` names, Edge Function shared-code pattern.
 
-### Not verified / known gaps
+#### Not verified / known gaps
 
 - R-14: whether `supabase functions deploy` bundles imports from `packages/*` (docs silent) —
   verify with the first function in P3.
@@ -77,13 +193,13 @@ F2) and F1/F3 are implemented. Details: `SECURITY.md §7`, `DECISIONS.md §F`.
 - Supabase's platform event trigger `public.rls_auto_enable()` exists on the dev project (not
   ours; excluded from the convention check) — **needs verification** of what it does.
 
-### Owner decisions taken (2026-11-26, DECISIONS §F)
+#### Owner decisions taken (2026-11-26, DECISIONS §F)
 
 F1 soft delete + 5-year retained billing records (implemented) · F2 no history rewrite, trailer
 rule from now on (in effect) · F3 content row limits (implemented) · F4 production project in
 Frankfurt in P17 · F5 new-style Supabase keys from P3.
 
-### Needs owner action
+#### Needs owner action
 
 1. **Revoke the Supabase personal access token used in P2** (Dashboard → Account → Access
    Tokens) and the network secret for `api.supabase.com` in the environment settings; create a
@@ -93,21 +209,21 @@ Frankfurt in P17 · F5 new-style Supabase keys from P3.
 3. Set `main` as the GitHub default branch (Settings → General), if not done yet.
 4. Review and merge PR #3 (F1 + F3 follow-up; PR #2 is already merged).
 
-### Next: P3 Auth, workspaces, app shell, i18n, tokens (not started)
+#### Next: P3 Auth, workspaces, app shell, i18n, tokens (not started)
 
 Start by presenting a P3 plan for approval (`ROADMAP.md` P3). P2 leaves ready: the full schema on
 the dev project, generated DB types in `@ai-crm/shared`, the runner and CI. P3 must verify R-14
 with the first Edge Function, wire Google sign-in per `DEPLOYMENT.md §6`, and use only the
 new-style Supabase keys (F5).
 
-### How to resume
+#### How to resume
 
 - Read this file, `DECISIONS.md`, `DATABASE.md`, `SECURITY.md`, `DEPLOYMENT.md`.
 - DB loop: `pnpm db:test:local` (no Docker) → push (CI `db` job) → `pnpm db:remote:migrate` +
   `pnpm db:remote:test` with a valid `SUPABASE_ACCESS_TOKEN` (see DEPLOYMENT §3). Applied
   migrations are frozen; new work = new migration + matrix row in suite 04.
 
-### Open "needs verification" items (tracked)
+#### Open "needs verification" items (tracked)
 
 Meta Graph API details (identifiers, tokens, webhooks, messaging windows, Embedded Signup v4
 outputs, webhook event ids) · PayPal Subscriptions/Orders API event names and plan-revision
@@ -117,8 +233,6 @@ signed upload URLs vs Storage RLS, CLI bundling of workspace packages (R-14), `r
 · Deno PDF/DOCX extraction · legal retention rules. Resolved in P2: Postgres has an `arabic`
 text-search config (dev project); pg_cron 1.6.4 / pg_net 0.20.4 / pgvector 0.8.2 / pgTAP 1.3.3 /
 Vault available; Supabase key naming; Google env names.
-
-## History
 
 ### P1 Foundation (Phase 01), tooling and reconciliation sessions
 
