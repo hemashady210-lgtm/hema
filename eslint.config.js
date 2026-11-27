@@ -45,6 +45,7 @@ export default tseslint.config(
     // Node tooling: DB runners, ESLint rules, Playwright config/specs, Vite configs.
     files: [
       'scripts/**/*.{js,mjs}',
+      'apps/*/scripts/**/*.{js,mjs}',
       'eslint-rules/**/*.js',
       '**/playwright.config.ts',
       '**/vite.config.ts',

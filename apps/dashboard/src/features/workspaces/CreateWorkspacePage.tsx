@@ -19,7 +19,6 @@ import {
   WORKSPACE_CATEGORIES,
   createWorkspaceSchema,
   slugify,
-  type Locale,
 } from '@ai-crm/shared';
 import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
@@ -27,6 +26,7 @@ import { BrandMark } from '@/components/brand-mark';
 import { InlineAlert } from '@/components/inline-alert';
 import { LanguageToggle } from '@/components/language-toggle';
 import { ThemeMenu } from '@/components/theme-menu';
+import { LocaleSegmented } from '@/components/locale-segmented';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -53,42 +53,6 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(id);
   }, [value, ms]);
   return v;
-}
-
-export function LocaleSegmented({
-  value,
-  onChange,
-  label,
-}: {
-  value: Locale;
-  onChange(v: Locale): void;
-  label: string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex h-10 w-full items-center gap-1 rounded-md bg-surface-2 p-1 ring-1 ring-border"
-    >
-      {(['ar', 'en'] as const).map((l) => (
-        <button
-          key={l}
-          type="button"
-          role="radio"
-          aria-checked={value === l}
-          lang={l}
-          onClick={() => onChange(l)}
-          className={cn(
-            'h-8 flex-1 rounded-sm text-subheadline font-medium text-text-secondary transition-colors duration-(--duration-micro) focus-visible:outline-2 focus-visible:outline-accent',
-            value === l && 'bg-elevated text-text-primary shadow-e1',
-          )}
-        >
-          {t(`language.${l}`)}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function CreateWorkspacePage() {

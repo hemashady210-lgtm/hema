@@ -22,7 +22,7 @@ import {
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useWorkspace } from '@/features/workspaces/context';
-import { LocaleSegmented } from '@/features/workspaces/CreateWorkspacePage';
+import { LocaleSegmented } from '@/components/locale-segmented';
 import { ApiClientError, fieldIssues } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { fieldError, useZodForm } from '@/lib/forms';

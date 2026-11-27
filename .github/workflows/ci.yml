@@ -20,6 +20,8 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
+      # Bundle budgets per route (DESIGN_SYSTEM §15): fails when a change makes first visits heavier.
+      - run: pnpm --filter dashboard build && pnpm --filter dashboard bundle:check
 
   # Migrations + pgTAP RLS suite on the real Supabase local stack (P2 exit criterion).
   db:

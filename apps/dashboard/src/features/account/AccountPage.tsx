@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { SettingsSection } from '@/features/settings/SettingsLayout';
-import { LocaleSegmented } from '@/features/workspaces/CreateWorkspacePage';
+import { LocaleSegmented } from '@/components/locale-segmented';
 import { errorMessage } from '@/lib/errors';
 import { fieldError, useZodForm } from '@/lib/forms';
 import { supabase } from '@/lib/supabase';
