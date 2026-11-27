@@ -20,6 +20,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
+      - run: bash scripts/ci/retry-infra.test.sh
       # Bundle budgets per route (DESIGN_SYSTEM §15): fails when a change makes first visits heavier.
       - run: pnpm --filter dashboard build && pnpm --filter dashboard bundle:check
 
@@ -27,12 +28,20 @@ jobs:
   db:
     runs-on: ubuntu-latest
     steps:
+      # Supabase's ports (54320–54329) sit inside Linux's ephemeral range (32768–60999). While
+      # the stack pulls its images, an outbound connection can be handed one of them, and Docker
+      # then fails with "address already in use" (seen on 54322 and 54324). Reserving the block
+      # keeps it out of ephemeral use; explicit binds (Docker's) still work.
+      - name: Reserve Supabase ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: 2.122.1
+      # One retry for infrastructure-only failures (port taken, image pull, network); a failing
+      # migration or seed fails at once (scripts/ci/retry-infra.sh).
       - name: Start Postgres and apply migrations + seed
-        run: supabase db start
+        run: scripts/ci/retry-infra.sh --cleanup 'supabase stop --no-backup' -- supabase db start
       - name: pgTAP suites
         run: supabase test db
       - name: plpgsql lint
@@ -55,6 +64,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Supabase's ports (54320–54329) sit inside Linux's ephemeral range (32768–60999). While
+      # the stack pulls its images, an outbound connection can be handed one of them, and Docker
+      # then fails with "address already in use" (seen on 54322 and 54324). Reserving the block
+      # keeps it out of ephemeral use; explicit binds (Docker's) still work.
+      - name: Reserve Supabase ports
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -69,7 +84,9 @@ jobs:
           version: 2.122.1
       - run: pnpm install --frozen-lockfile
       - name: Start Supabase local stack
-        run: supabase start -x studio,imgproxy,logflare,vector,supavisor,realtime
+        run: >-
+          scripts/ci/retry-infra.sh --cleanup 'supabase stop --no-backup' --
+          supabase start -x studio,imgproxy,logflare,vector,supavisor,realtime
       - name: Export local (well-known, non-secret) stack keys
         run: |
           supabase status -o env > "$RUNNER_TEMP/sb.env"
@@ -96,7 +113,9 @@ jobs:
       - name: Build dashboard
         run: pnpm --filter @ai-crm/dashboard build
       - name: Install Chromium
-        run: pnpm --filter @ai-crm/dashboard exec playwright install --with-deps chromium
+        run: >-
+          scripts/ci/retry-infra.sh --
+          pnpm --filter @ai-crm/dashboard exec playwright install --with-deps chromium
       - name: Playwright journey (ar + en, axe)
         run: pnpm --filter @ai-crm/dashboard exec playwright test --project=journey
       - uses: actions/upload-artifact@v4
