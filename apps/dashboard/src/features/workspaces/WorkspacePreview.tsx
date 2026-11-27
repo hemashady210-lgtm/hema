@@ -43,7 +43,7 @@ export default function WorkspacePreview({
           <div className="surface-card relative overflow-hidden rounded-3xl border p-6">
             <div
               aria-hidden
-              className="pointer-events-none absolute -end-16 -top-20 size-56 rounded-full bg-[radial-gradient(closest-side,rgb(61_99_240/0.28),transparent)]"
+              className="decor-light pointer-events-none absolute -end-16 -top-20 size-56 rounded-full bg-[radial-gradient(closest-side,rgb(61_99_240/0.28),transparent)]"
             />
             <div className="relative flex items-center gap-4">
               <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(145deg,#5a7bff,#2747d1)] text-title-3 font-semibold text-white shadow-glow">

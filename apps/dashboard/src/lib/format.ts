@@ -89,26 +89,37 @@ const COUNTRY_ZONES: Record<string, string> = {
   JO: 'Asia/Amman',
 };
 
-export function countryTimeZone(country: string | null | undefined): string | undefined {
-  return country ? COUNTRY_ZONES[country] : undefined;
+/** The device's IANA time zone, or null when the platform doesn't report one. */
+export function deviceTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Default for the time zone picker: the device's own zone when it is in the list (HIG entering
- * data › "Get information from the system"), otherwise the country's main zone — never empty.
+ * The time zone picker's value (review finding 3): the device's zone always wins when it is a
+ * selectable zone (HIG entering data › "Get information from the system") — a country choice
+ * never overwrites it. Only when the device zone is unavailable does the country's main zone
+ * apply; with neither, the current value is kept (or the Gulf default on first render).
  */
-export function defaultTimeZone(country: string, zones: string[] = timeZoneOptions()): string {
-  const device = browserTimeZone();
-  if (zones.includes(device)) return device;
-  return COUNTRY_ZONES[country] ?? 'Asia/Riyadh';
-}
-
-export function browserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';
-  } catch {
-    return 'Asia/Riyadh';
-  }
+export function pickTimeZone({
+  device,
+  zones,
+  country,
+  current,
+}: {
+  device: string | null;
+  zones: string[];
+  country?: string | null | undefined;
+  current?: string | undefined;
+}): string {
+  if (device && zones.includes(device)) return device;
+  const byCountry = country ? COUNTRY_ZONES[country] : undefined;
+  if (byCountry && zones.includes(byCountry)) return byCountry;
+  if (current && zones.includes(current)) return current;
+  return 'Asia/Riyadh';
 }
 
 export function initials(name: string | null | undefined, email?: string | null): string {

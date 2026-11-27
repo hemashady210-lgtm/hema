@@ -285,6 +285,7 @@
 }
 @media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
   .fx-gradient,
+  .fx-shapes,
   .fx-spotlight::before,
   .fx-glow::after,
   .fx-shimmer::after {

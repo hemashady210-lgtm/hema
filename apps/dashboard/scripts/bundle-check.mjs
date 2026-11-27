@@ -5,8 +5,10 @@
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const dist = new URL('../dist/', import.meta.url).pathname;
+// fileURLToPath: correct for paths with spaces or non-ASCII characters.
+const dist = fileURLToPath(new URL('../dist/', import.meta.url));
 const manifest = JSON.parse(readFileSync(join(dist, '.vite/manifest.json'), 'utf8'));
 const gz = (file) => gzipSync(readFileSync(join(dist, file)), { level: 9 }).length;
 const kb = (n) => `${(n / 1024).toFixed(1)} kB`;
@@ -47,7 +49,7 @@ const routes = {
   ],
 };
 
-const budgets = { css: 16 * 1024, effects: 45 * 1024, webgl: 260 * 1024 };
+const budgets = { css: 16 * 1024, effects: 45 * 1024, preview: 40 * 1024, webgl: 260 * 1024 };
 const rows = [];
 const failures = [];
 for (const [name, [mods, budgetKb]] of Object.entries(routes)) {
@@ -73,17 +75,25 @@ const signInSet = closure('src/features/auth/SignInPage.tsx', new Set(entry));
 const effects = manifest[panelKey]
   ? size(files(minus(minus(closure(panelKey), signInSet), closure(webglKey)), 'js'))
   : 0;
+// The desktop-only workspace preview (Motion tilt + glow) is a lazy chunk on top of the
+// create-workspace page.
+const previewKey = 'src/features/workspaces/WorkspacePreview.tsx';
+const createSet = closure('src/features/workspaces/CreateWorkspacePage.tsx', new Set(entry));
+const preview = manifest[previewKey] ? size(files(minus(closure(previewKey), createSet), 'js')) : 0;
 const totalCss = size(files(new Set(Object.keys(manifest)), 'css'));
 
 console.log('\nBundle (gzip, level 9)\n');
 for (const [name, js, css] of rows)
   console.log(`  ${name.padEnd(30)} JS ${kb(js).padStart(9)}   CSS ${kb(css).padStart(8)}`);
 console.log(`  ${'brand panel + effects (lazy)'.padEnd(30)} JS ${kb(effects).padStart(9)}`);
+console.log(`  ${'workspace preview (lazy)'.padEnd(30)} JS ${kb(preview).padStart(9)}`);
 console.log(`  ${'WebGL scene (lazy, desktop)'.padEnd(30)} JS ${kb(webgl).padStart(9)}`);
 console.log(`  ${'all CSS'.padEnd(30)}              CSS ${kb(totalCss).padStart(8)}\n`);
 
 if (totalCss > budgets.css) failures.push(`CSS ${kb(totalCss)} > ${kb(budgets.css)}`);
 if (effects > budgets.effects) failures.push(`brand panel ${kb(effects)} > ${kb(budgets.effects)}`);
+if (preview > budgets.preview)
+  failures.push(`workspace preview ${kb(preview)} > ${kb(budgets.preview)}`);
 if (webgl > budgets.webgl) failures.push(`WebGL ${kb(webgl)} > ${kb(budgets.webgl)}`);
 if (failures.length) {
   console.error(`Over budget:\n  ${failures.join('\n  ')}`);

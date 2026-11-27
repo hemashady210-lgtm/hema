@@ -139,8 +139,22 @@
   --card-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.6), transparent 120px);
 }
 
+/* Increase Contrast or Reduce Transparency (HIG accessibility; review C1 + finding 4): no glows,
+   no ambient light, no top-lit sheen. Increase Contrast then swaps glows for solid rings below. */
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme='light'] {
+    --glow-primary: none;
+    --glow-accent: none;
+    --elevation-glow: none;
+    --aurora-1: transparent;
+    --aurora-2: transparent;
+    --card-sheen: none;
+  }
+}
+
 /* Increase Contrast (HIG accessibility; review C1): stronger hairlines and secondary text,
-   opaque materials, no glows or ambient light. */
+   opaque materials, solid 2 px rings where glows were. */
 @media (prefers-contrast: more) {
   :root {
     --border: rgb(148 170 255 / 0.3);
@@ -153,9 +167,7 @@
     --material-chrome: var(--background);
     --glow-primary: 0 0 0 2px var(--royal-400);
     --glow-accent: 0 0 0 2px var(--electric-400);
-    --aurora-1: transparent;
-    --aurora-2: transparent;
-    --card-sheen: none;
+    --elevation-glow: 0 0 0 2px var(--royal-400);
   }
   [data-theme='light'] {
     --border: rgb(15 28 77 / 0.32);
@@ -164,6 +176,7 @@
     --text-tertiary: #3d4662;
     --glow-primary: 0 0 0 2px var(--royal-700);
     --glow-accent: 0 0 0 2px var(--electric-700);
+    --elevation-glow: 0 0 0 2px var(--royal-700);
   }
 }
 

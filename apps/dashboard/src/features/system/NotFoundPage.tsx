@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { ArrowLeft, Compass } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { BrandMark } from '@/components/brand-mark';
@@ -15,6 +15,9 @@ import { cn } from '@/lib/utils';
 export function NotFoundPage({ inShell = false }: { inShell?: boolean }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // "Back" only when there is in-app history: on a fresh tab (pasted link, bookmark) or after
+  // arriving from another site, navigate(-1) would do nothing or leave the app.
+  const canGoBack = useLocation().key !== 'default';
   useDocumentTitle(t('notFound.title'));
   const body = (
     <div className="surface-card bg-aurora relative isolate w-full overflow-hidden rounded-3xl border px-6 py-16 sm:py-24">
@@ -31,10 +34,12 @@ export function NotFoundPage({ inShell = false }: { inShell?: boolean }) {
           <Button asChild>
             <Link to="/">{t('notFound.home')}</Link>
           </Button>
-          <Button variant="secondary" onClick={() => navigate(-1)}>
-            <ArrowLeft aria-hidden className="rtl-mirror" />
-            {t('common.back')}
-          </Button>
+          {canGoBack ? (
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              <ArrowLeft aria-hidden className="rtl-mirror" />
+              {t('common.back')}
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

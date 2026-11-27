@@ -20,8 +20,10 @@ import { initials } from '@/lib/format';
 export function UserMenu({ slug }: { slug: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile, user, signOut, setLocale } = useAuth();
-  const { locale, theme, setTheme } = usePreferences();
+  // Preference setters come from auth: they apply locally AND save to the profile, so the
+  // choice survives reloads and follows the person to other devices (review finding 1).
+  const { profile, user, signOut, setLocale, setTheme } = useAuth();
+  const { locale, theme } = usePreferences();
   const other = locale === 'ar' ? 'en' : 'ar';
   const name = profile?.full_name ?? user?.email ?? '';
   return (

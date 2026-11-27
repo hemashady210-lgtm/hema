@@ -22,7 +22,7 @@ export default defineConfig({
   projects: [
     {
       name: 'journey',
-      testMatch: /journey\.spec\.ts/,
+      testMatch: /(journey|surfaces)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {

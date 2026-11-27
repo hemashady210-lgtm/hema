@@ -30,35 +30,44 @@ export function NumberTicker({
   const ref = useRef<HTMLSpanElement>(null);
   const reduced = usePrefersReducedMotion();
   const visible = useActive(ref, '0px');
-  const shown = useRef<number | null>(null);
+  // What the person currently sees. A new run (value change, StrictMode re-run) continues from
+  // here, so the count never jumps or restarts from 0 mid-way.
+  const displayed = useRef(0);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (reduced) {
       el.textContent = finalText;
-      shown.current = value;
+      displayed.current = value;
       return;
     }
     if (!visible) return;
-    const from = shown.current ?? 0;
+    const from = displayed.current;
     if (from === value) {
       el.textContent = finalText;
       return;
     }
     // A short ease-out count (no animation library: keeps Motion out of route bundles).
-    const start = performance.now();
+    // Timed on the frame clock itself: a frame's timestamp can precede performance.now() taken
+    // here, which would make progress negative and briefly show a value below `from` (e.g. "-1").
     const duration = 900;
+    let start = -1;
     let frame = 0;
     const tick = (now: number) => {
-      const t = Math.min((now - start) / duration, 1);
+      if (start < 0) start = now;
+      const t = Math.min(Math.max((now - start) / duration, 0), 1);
       const eased = 1 - Math.pow(1 - t, 3);
-      el.textContent = fmt.format(Math.round(from + (value - from) * eased));
+      const current = Math.round(from + (value - from) * eased);
+      displayed.current = current;
+      el.textContent = fmt.format(current);
       if (t < 1) frame = requestAnimationFrame(tick);
-      else el.textContent = finalText;
+      else {
+        displayed.current = value;
+        el.textContent = finalText;
+      }
     };
     frame = requestAnimationFrame(tick);
-    shown.current = value;
     return () => cancelAnimationFrame(frame);
   }, [value, visible, reduced, fmt, finalText]);
 

@@ -155,17 +155,6 @@
     box-shadow: var(--card-highlight), var(--elevation-1);
   }
 
-  /* Ambient light for auth / onboarding / empty states only (H2). Static: no animation. */
-  .bg-aurora {
-    background-image:
-      radial-gradient(60% 50% at 15% 0%, var(--aurora-1), transparent 70%),
-      radial-gradient(50% 45% at 100% 100%, var(--aurora-2), transparent 70%);
-  }
-  .bg-aurora:where([dir='rtl'] *, [dir='rtl']) {
-    background-image:
-      radial-gradient(60% 50% at 85% 0%, var(--aurora-1), transparent 70%),
-      radial-gradient(50% 45% at 0% 100%, var(--aurora-2), transparent 70%);
-  }
   .text-brand-gradient {
     background: var(--brand-gradient);
     -webkit-background-clip: text;
@@ -179,10 +168,38 @@
   }
 }
 
+/* Ambient light for auth / onboarding / empty states only (H2). Static: no animation. A real
+   Tailwind v4 utility (not a plain class in @layer), so variants such as `max-lg:bg-aurora`
+   generate CSS (review finding 5: the phone aurora on auth screens never rendered). */
+@utility bg-aurora {
+  background-image:
+    radial-gradient(60% 50% at 15% 0%, var(--aurora-1), transparent 70%),
+    radial-gradient(50% 45% at 100% 100%, var(--aurora-2), transparent 70%);
+  &:where([dir='rtl'] *, [dir='rtl']) {
+    background-image:
+      radial-gradient(60% 50% at 85% 0%, var(--aurora-1), transparent 70%),
+      radial-gradient(50% 45% at 0% 100%, var(--aurora-2), transparent 70%);
+  }
+}
+
+/* Increase Contrast / Reduce Transparency (review finding 4): decorative light and glows off.
+   Tokens handle shadow-glow / glow-* / aurora; these cover one-off decorative layers. */
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  .decor-light {
+    display: none !important;
+  }
+  .decor-glow {
+    box-shadow: none !important;
+  }
+}
+
 /* Windows High Contrast / forced colors: drop decorative fills, keep real borders. */
 @media (forced-colors: active) {
-  .surface-card,
-  .bg-aurora {
+  :root {
+    --aurora-1: transparent;
+    --aurora-2: transparent;
+  }
+  .surface-card {
     background-image: none;
     box-shadow: none;
     border: 1px solid CanvasText;
@@ -227,4 +244,17 @@
    Unlayered on purpose: it must beat the `font-semibold` utility on headings. */
 html[lang='ar'] :is(h1, h2) {
   font-weight: 700;
+}
+
+/* Navigation progress bar: travels in reading direction (mirrors in RTL). */
+@keyframes nav-progress {
+  from {
+    transform: translateX(calc(var(--nav-dir, 1) * -100%));
+  }
+  to {
+    transform: translateX(calc(var(--nav-dir, 1) * 300%));
+  }
+}
+[dir='rtl'] {
+  --nav-dir: -1;
 }

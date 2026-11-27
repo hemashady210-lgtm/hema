@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { createBrowserRouter, Navigate, Outlet, type RouteObject } from 'react-router';
 import { FullPageLoader } from '@/components/full-page-loader';
+import { NavigationProgress } from '@/components/navigation-progress';
 import { AuthLayout } from '@/features/auth/AuthLayout';
 import { RedirectIfAuthenticated, RequireAuth } from '@/features/auth/guards';
 import { ALL_ITEMS, type SectionKey } from '@/features/shell/nav';
@@ -95,7 +96,7 @@ const sectionRoutes: RouteObject[] = ALL_ITEMS.filter((i) => i.comingSoon && i.p
 
 export const routes: RouteObject[] = [
   {
-    element: <Outlet />,
+    element: <RootLayout />,
     errorElement: <RouteError />,
     HydrateFallback: FullPageLoader,
     children: [
@@ -178,6 +179,16 @@ export const routes: RouteObject[] = [
     ],
   },
 ];
+
+/** Root: a progress bar while a lazy page loads (route splitting), then the page. */
+function RootLayout() {
+  return (
+    <>
+      <NavigationProgress />
+      <Outlet />
+    </>
+  );
+}
 
 /** Super Admin (P14) is not built; /admin sends platform admins back to their workspaces. */
 function AdminPlaceholder() {

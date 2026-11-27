@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { usePreferences } from '@/app/preferences';
 import { cn } from '@/lib/utils';
 import { useActive } from './env';
@@ -24,17 +24,20 @@ export function AnimatedBeams({ beams, className }: { beams: Beam[]; className?:
   const id = useId().replace(/:/g, '');
   const ref = useRef<SVGSVGElement>(null);
   const active = useActive(ref);
-  // Draw in real pixels (measured), so dash lengths and stroke widths stay true at any size.
+  // Draw in real pixels, so dash lengths and stroke widths stay true at any size.
   const [box, setBox] = useState({ w: 100, h: 100 });
-  useEffect(() => {
+  // Measured before paint (no 100×100 first frame); layout size, so ancestor transforms
+  // don't skew it.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      if (r.width && r.height) setBox({ w: r.width, h: r.height });
+    const measure = (w: number, h: number) => {
+      if (w && h) setBox((b) => (b.w === w && b.h === h ? b : { w, h }));
     };
-    measure();
-    const ro = new ResizeObserver(measure);
+    measure(el.clientWidth, el.clientHeight);
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) measure(entry.contentRect.width, entry.contentRect.height);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);

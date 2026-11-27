@@ -23,7 +23,8 @@ function mediaStore(query: string) {
 const reducedMotion = mediaStore('(prefers-reduced-motion: reduce)');
 const reducedTransparency = mediaStore('(prefers-reduced-transparency: reduce)');
 const moreContrast = mediaStore('(prefers-contrast: more)');
-const desktop = mediaStore('(min-width: 1024px)');
+// rem, like Tailwind's `lg` (64rem): with a larger default font both agree on "desktop".
+const desktop = mediaStore('(min-width: 64rem)');
 const finePointer = mediaStore('(hover: hover) and (pointer: fine)');
 
 export function usePrefersReducedMotion(): boolean {
@@ -65,9 +66,11 @@ export function useActive(ref: RefObject<Element | null>, rootMargin = '120px'):
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(([entry]) => setInView(entry?.isIntersecting ?? true), {
-      rootMargin,
-    });
+    // Entries can arrive batched (e.g. [out, in]); the LAST one is the current state.
+    const io = new IntersectionObserver(
+      (entries) => setInView(entries[entries.length - 1]?.isIntersecting ?? true),
+      { rootMargin },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, [ref, rootMargin]);

@@ -95,14 +95,15 @@ function SidebarLink({
             strokeWidth={1.75}
           />
           {collapsed ? null : <span className="truncate">{label}</span>}
-          {/* "Coming soon" is announced with the link and shown in words on hover/focus —
-              never a bare dot (HIG accessibility › "Convey information with more than color"). */}
+          {/* "Coming soon" is announced with the link and shown in words on hover/focus — and
+              always on touch screens, which have no hover — never a bare dot (HIG
+              accessibility › "Convey information with more than color"). */}
           {!collapsed && soon ? (
             <>
               <span className="sr-only"> ({soon})</span>
               <span
                 aria-hidden
-                className="ms-auto rounded-full px-1.5 text-caption text-text-tertiary opacity-0 transition-opacity duration-(--duration-micro) group-hover:opacity-100 group-focus-visible:opacity-100"
+                className="ms-auto rounded-full px-1.5 text-caption text-text-tertiary opacity-0 transition-opacity duration-(--duration-micro) group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
               >
                 {soon}
               </span>

@@ -1,6 +1,6 @@
 import { useRef, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
-import { useActive } from './env';
+import { useActive, usePrefersPlainSurfaces } from './env';
 import './effects.css';
 
 /**
@@ -10,6 +10,9 @@ import './effects.css';
 export function AnimatedGradient({ className }: { className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const active = useActive(ref);
+  const plain = usePrefersPlainSurfaces();
+  // Increase Contrast / Reduce Transparency: no ambient light at all (review finding 4).
+  if (plain) return null;
   return (
     <div
       ref={ref}
@@ -73,6 +76,9 @@ export function FloatingShapes({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const active = useActive(ref);
+  const plain = usePrefersPlainSurfaces();
+  // Increase Contrast / Reduce Transparency: no floating glass (review finding 4).
+  if (plain) return null;
   return (
     <div
       ref={ref}

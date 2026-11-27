@@ -12,6 +12,8 @@ const API = process.env.E2E_API_URL ?? 'http://127.0.0.1:54321/functions/v1/api'
 const PUB = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? '';
 const SECRET = process.env.E2E_SUPABASE_SECRET_KEY ?? '';
 const REDUCED = process.env.E2E_REDUCED_MOTION === '1';
+// E2E_ONLY=01-sign-in,08-create-workspace → capture only these screens (flows still run).
+const ONLY = (process.env.E2E_ONLY ?? '').split(',').filter(Boolean);
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
 
 type Locale = 'ar' | 'en';
@@ -163,10 +165,27 @@ async function context(
 }
 
 async function shot(page: Page, name: string, tag: string) {
+  if (ONLY.length && !ONLY.includes(name)) return;
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => document.fonts.ready);
   // Let one-time reveals, count-ups and the lazy WebGL core settle before capturing.
   await page.waitForTimeout(REDUCED ? 350 : 2200);
+  // Reproducible frames: finish one-time animations and stop CSS loops (beams, glow, shimmer,
+  // floating shapes) at the same point. The WebGL core keeps its own clock.
+  await page.evaluate(() => {
+    for (const a of document.getAnimations()) {
+      try {
+        if (a.effect?.getComputedTiming().iterations === Infinity) {
+          a.pause();
+          a.currentTime = 1600;
+        } else {
+          a.finish();
+        }
+      } catch {
+        // Animations without an end can't finish; leave them.
+      }
+    }
+  });
   await page.screenshot({ path: join(OUT, `${name}--${tag}.png`) });
 }
 

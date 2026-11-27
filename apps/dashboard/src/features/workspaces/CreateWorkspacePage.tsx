@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/select';
 import { api, ApiClientError, fieldIssues } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { countryOptions, countryTimeZone, defaultTimeZone, timeZoneOptions } from '@/lib/format';
+import { countryOptions, deviceTimeZone, pickTimeZone, timeZoneOptions } from '@/lib/format';
 import { fieldError, useZodForm } from '@/lib/forms';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { cn } from '@/lib/utils';
@@ -74,12 +74,13 @@ export function CreateWorkspacePage() {
   const zoneTouched = useRef(false);
   const desktop = useIsDesktop();
   const zones = useMemo(() => timeZoneOptions(), []);
+  const device = useMemo(() => deviceTimeZone(), []);
 
   const form = useZodForm(createWorkspaceSchema, {
     name: '',
     slug: '',
     country_code: 'SA',
-    timezone: defaultTimeZone('SA', zones),
+    timezone: pickTimeZone({ device, zones, country: 'SA' }),
     default_locale: locale,
   });
   const { errors, isSubmitting } = form.formState;
@@ -88,11 +89,14 @@ export function CreateWorkspacePage() {
   const country = form.watch('country_code');
   const preview = form.watch();
 
-  // Picking a country moves the time zone with it until people choose a zone themselves.
+  // The device's zone wins and is never overwritten; only without one does the zone follow
+  // the chosen country — and never after people pick a zone themselves.
   useEffect(() => {
-    const zone = countryTimeZone(country);
-    if (!zoneTouched.current && zone && zones.includes(zone)) form.setValue('timezone', zone);
-  }, [country, form, zones]);
+    if (zoneTouched.current) return;
+    const current = form.getValues('timezone');
+    const next = pickTimeZone({ device, zones, country, current });
+    if (next !== current) form.setValue('timezone', next);
+  }, [country, device, form, zones]);
 
   useEffect(() => {
     if (!slugTouched.current)

@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import { AnimatedGradient, FloatingShapes } from '@/components/effects/ambient';
 import { AnimatedBeams } from '@/components/effects/animated-beam';
 import { BrandCore } from '@/components/effects/brand-core';
@@ -122,6 +123,87 @@ describe('effects: number ticker', () => {
     await waitFor(() => expect(container.querySelector('[aria-hidden]')?.textContent).toBe('3'), {
       timeout: 4000,
     });
+  });
+
+  it('a new value counts on from what is shown — never back from 0 — and ends on it', async () => {
+    const { container, rerender } = render(<NumberTicker value={40} locale="en" />);
+    const shown = () => Number(container.querySelector('[aria-hidden]')?.textContent);
+    await waitFor(() => expect(shown()).toBe(40), { timeout: 4000 });
+    const seen: number[] = [];
+    const observer = new MutationObserver(() => seen.push(shown()));
+    observer.observe(container, { subtree: true, characterData: true, childList: true });
+    rerender(<NumberTicker value={45} locale="en" />);
+    await waitFor(() => expect(shown()).toBe(45), { timeout: 4000 });
+    observer.disconnect();
+    expect(Math.min(...seen)).toBeGreaterThanOrEqual(40);
+    expect(container.querySelector('.sr-only')?.textContent).toBe('45');
+  });
+});
+
+describe('effects: Increase Contrast and Reduce Transparency (review finding 4)', () => {
+  for (const query of ['prefers-contrast: more', 'prefers-reduced-transparency: reduce']) {
+    it(`drops floating shapes, ambient light and the core halo under (${query})`, () => {
+      const restore = mockMedia((q) => q.includes(query));
+      const { container } = render(
+        <>
+          <AnimatedGradient />
+          <FloatingShapes />
+          <BrandCore className="size-40" />
+        </>,
+      );
+      expect(container.querySelector('.fx-gradient, .fx-shapes')).toBeNull();
+      expect(screen.queryByTestId('core-halo')).toBeNull();
+      // The core itself stays (it is content-like branding), just without glow layers.
+      expect(container.querySelector('.decor-glow')).not.toBeNull();
+      restore();
+    });
+  }
+
+  it('keeps them with default settings', () => {
+    const { container } = render(
+      <>
+        <AnimatedGradient />
+        <FloatingShapes />
+        <BrandCore className="size-40" />
+      </>,
+    );
+    expect(container.querySelectorAll('.fx-gradient, .fx-shapes')).toHaveLength(2);
+    expect(screen.getByTestId('core-halo')).toBeInTheDocument();
+  });
+});
+
+describe('effects: visibility and measuring', () => {
+  it('uses the latest of batched intersection entries (scrolled out then back in = running)', () => {
+    let notify: (entries: Array<{ isIntersecting: boolean }>) => void = () => {};
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) {
+        notify = cb;
+      }
+      observe() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver;
+    const { container } = render(<FloatingShapes />);
+    const layer = () => container.querySelector('.fx-shapes')!;
+    act(() => notify([{ isIntersecting: true }, { isIntersecting: false }]));
+    expect(layer()).toHaveClass('fx-paused');
+    act(() => notify([{ isIntersecting: false }, { isIntersecting: true }]));
+    expect(layer()).not.toHaveClass('fx-paused');
+    globalThis.IntersectionObserver = original;
+  });
+
+  it('beams are drawn in the measured pixel box from the first paint', () => {
+    const w = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(400);
+    const h = vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(200);
+    setLocale('en');
+    const { container } = renderWithProviders(
+      <AnimatedBeams beams={[{ from: [10, 20], to: [80, 50] }]} />,
+    );
+    const svg = container.querySelector('svg')!;
+    expect(svg.getAttribute('viewBox')).toBe('0 0 400 200');
+    expect(container.querySelector('path')?.getAttribute('d')).toMatch(/^M40 40 .* 320 100$/);
+    w.mockRestore();
+    h.mockRestore();
   });
 });
 

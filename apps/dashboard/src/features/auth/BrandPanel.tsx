@@ -101,7 +101,7 @@ export function BrandPanel() {
                 className={cn(
                   'max-w-[40ch] rounded-2xl px-3.5 py-2 text-subheadline leading-relaxed',
                   m.from === 'assistant'
-                    ? 'rounded-ee-md bg-[linear-gradient(135deg,#2747d1,#3d63f0)] text-white shadow-[0_10px_30px_-14px_rgb(61_99_240/0.9)]'
+                    ? 'decor-glow rounded-ee-md bg-[linear-gradient(135deg,#2747d1,#3d63f0)] text-white shadow-[0_10px_30px_-14px_rgb(61_99_240/0.9)]'
                     : 'rounded-es-md bg-white/[0.07] ring-1 ring-white/10',
                   m.lang === 'ar' && 'font-[family-name:var(--font-arabic)] text-callout',
                 )}
