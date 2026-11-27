@@ -22,12 +22,16 @@ PayPal is expected to offer (hosted subscription approval, webhooks, one-time ca
 
 ## 2. Plan catalog (seeded)
 
-| Code         | Monthly       | Annual (10×) | AI replies                       | Bots | Users | Meta channels   | Features                                                          |
-| ------------ | ------------- | ------------ | -------------------------------- | ---- | ----- | --------------- | ----------------------------------------------------------------- |
-| `trial`      | free (7 days) | —            | 100 total                        | 1    | 1     | 0 (widget only) | basic                                                             |
-| `starter`    | $39           | $390         | 1,000 / mo, hard stop            | 1    | 1     | 1               | basic analytics                                                   |
-| `growth`     | $99           | $990         | 5,000 / mo + overage $10 / 1,000 | 2    | 3     | 3               | advanced analytics, classification, orders, reservations, handoff |
-| `enterprise` | from $299     | from $2,990  | custom (default 20,000)          | ∞    | ∞     | ∞               | + multi-branch, API access, white-label widget                    |
+| Code         | Monthly       | Annual (10×) | AI replies                       | Bots | Users | Meta channels   | FAQs / catalog items / files (F3) | Features                                                          |
+| ------------ | ------------- | ------------ | -------------------------------- | ---- | ----- | --------------- | --------------------------------- | ----------------------------------------------------------------- |
+| `trial`      | free (7 days) | —            | 100 total                        | 1    | 1     | 0 (widget only) | 30 / 50 / 5                       | basic                                                             |
+| `starter`    | $39           | $390         | 1,000 / mo, hard stop            | 1    | 1     | 1               | 200 / 500 / 20                    | basic analytics                                                   |
+| `growth`     | $99           | $990         | 5,000 / mo + overage $10 / 1,000 | 2    | 3     | 3               | 1,000 / 2,000 / 100               | advanced analytics, classification, orders, reservations, handoff |
+| `enterprise` | from $299     | from $2,990  | custom (default 20,000)          | ∞    | ∞     | ∞               | custom (unlimited by default)     | + multi-branch, API access, white-label widget                    |
+
+Content limits are the entitlements `max_faqs`, `max_catalog_items` and `knowledge_files_max`
+(plus `knowledge_file_max_mb` per upload), enforced by insert triggers that raise
+`plan_limit:<key>:<limit>` (suite 02).
 
 One-time product: `meta_channel_connection` — **$49 per channel**, refundable (C6).
 Effective entitlement = `workspace_entitlement_overrides` (Enterprise custom / admin
@@ -208,6 +212,15 @@ status draft → issued → paid)` (one live overage invoice per usage period, u
 4. If the connection cannot be completed → request `rejected` and a refund:
    PayPal refund API or manual refund record (`refund_of_id` links the original), `fee_status =
 refunded`, customer notified.
+
+## 9b. Billing records after workspace deletion (F1)
+
+`soft_delete_workspace()` keeps `billing_events`, `payment_transactions`, `invoices_records` (and
+PayPal webhook events as evidence), detached from tenant content: invoices keep their billing
+period as a snapshot, subscription links are cleared, the workspace row keeps only
+`retained_billing_identity` (name, slug, country). Former members cannot read them. They are
+removed with the tombstone after `billing_record_retention_days` (default 1825 = 5 years) by
+`purge_deleted_workspaces()`. Legal retention per country remains **needs verification**.
 
 ## 10. Billing UI states (real data only)
 

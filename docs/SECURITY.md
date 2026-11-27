@@ -58,7 +58,7 @@ phase of each function (`ROADMAP.md`).
 | Cross-tenant references impossible                                                                                                            | `05_cross_tenant_references` (18)                         |
 | Credential isolation + Vault (incl. disconnect cleanup)                                                                                       | `06_channel_credentials` (16)                             |
 | Metering (release → retry re-reserved), entitlements from paid subscriptions only, plan gates                                                 | `02_plan_limits_metering` (47)                            |
-| Results                                                                                                                                       | 459/459 on the dev project, in CI and locally             |
+| Results                                                                                                                                       | 482/482 on the dev project, in CI and locally             |
 | Concurrent inserts at a plan limit (two sessions)                                                                                             | manual check, local Postgres, 2026-11-26: second rejected |
 | REST layer (dev project, real keys): `anon` → 401 `42501` on tenant tables, service-only tables and RPCs; pricing readable; trial plan hidden | manual check 2026-11-26 (P2)                              |
 
@@ -94,6 +94,8 @@ phase of each function (`ROADMAP.md`).
 | Assignees are real agents                                             | trigger on `conversations.assigned_to`                                                                  |
 | No orphaned tokens                                                    | credential row deleted on disconnect / channel / workspace deletion; Vault secret deleted with it       |
 | Rows stay in their workspace                                          | `workspace_id` immutable (trigger on every tenant table)                                                |
+| Content volume per plan (F3)                                          | insert triggers for `max_faqs`, `max_catalog_items`, `knowledge_files_max`, `knowledge_file_max_mb`     |
+| Deleted workspaces leave only billing records (F1)                    | `soft_delete_workspace`: tombstone + purge; billing kept detached, unreadable by former members         |
 | Bounded client input                                                  | size caps on flexible jsonb / array columns; asset paths scoped to the row's prefix; ISO currency codes |
 
 ## 5. Edge-function controls (designed; built per phase)
@@ -161,15 +163,13 @@ migration `…20261126000100_p2_review_fixes` with regression tests:
 
 ## 8. Open items
 
-- **Owner decision:** billing history (`payment_transactions`, `billing_events`,
-  `invoices_records`) is cascade-deleted with a workspace today; DATABASE §7 / C8 expect it to
-  be retained (anonymized) — choose archive-before-delete or retained FKs (legal retention =
-  **needs verification**). The deletion job is built in P10.
-- **Owner decision:** row quotas for FAQs / catalog items per plan (limits are data; not in the
-  approved pricing) to cap embedding and prompt cost on trials.
+- Resolved by the owner (DECISIONS §F): billing records on deletion (F1, soft delete, 5-year
+  retention) and content row limits (F3), both implemented in migration 0014. The deletion job
+  that calls `soft_delete_workspace` is built in P10; legal retention per country is still
+  **needs verification**.
 - `consume_ai_reply` can only refuse playground runs when the worker passes `ai_run_id`; P7 must
   always pass it.
 - Security review / RLS audit and pen-test checklist (P16) · rate limits (P3/P8) · Realtime
   broadcast authorization (**needs verification**) · legal retention rules (**needs
-  verification**) · rotate to new Supabase keys before 2027 · consider running remote pgTAP on a
+  verification**) · new-style Supabase keys from P3 (F5) · consider running remote pgTAP on a
   Supabase branch instead of the shared dev database · **revoke the P2 personal access token**.

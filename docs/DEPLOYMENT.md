@@ -10,7 +10,7 @@ Status: **P2** — the database side is live on the Supabase dev project; applic
 | local      | Supabase CLI local stack (`supabase start` / `db start`), `config.toml`                | Vite dev servers                                | `supabase/seed.sql` demo            |
 | CI         | Supabase CLI local stack in GitHub Actions (job `db`)                                  | —                                               | seed + pgTAP fixtures (rolled back) |
 | staging    | **dev project `ai-crm-dev`** (ref `jpzgdyzbhszyrvzcsljq`, `eu-west-1`, Postgres 17.12) | Cloudflare Pages preview, CDN `/staging/` (P17) | no demo seed (owner decision)       |
-| production | new project, **EU · Frankfurt (`eu-central-1`, A5)** — not created yet                 | Cloudflare Pages, CDN `/v1/` (P17)              | real                                |
+| production | new project, **EU · Frankfurt (`eu-central-1`, A5)** — created in P17 (F4)             | Cloudflare Pages, CDN `/v1/` (P17)              | real                                |
 
 The dev project's region (Ireland) differs from A5's Frankfurt. It is fine for dev/staging; the
 production project must be created in Frankfurt (RISKS R-20).
@@ -82,8 +82,9 @@ production on tag) are P17.
 `.env.example` lists every name (§21, E12), placeholders only. Notes verified in P2:
 
 - `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY` → the **publishable** key (`sb_publishable_…`);
-  `SUPABASE_SERVICE_ROLE_KEY` → a **secret** key (`sb_secret_…`). Legacy JWT keys work until
-  Supabase deprecates them in early 2027 (SECURITY.md §6).
+  `SUPABASE_SERVICE_ROLE_KEY` → a **secret** key (`sb_secret_…`). **From P3 onward only the
+  new-style keys are used (F5)**; the legacy JWT keys in the P2 environment are replaced then
+  (Supabase deprecates them in early 2027, SECURITY.md §6).
 - Google sign-in (E8, P3): `config.toml` section `[auth.external.google]` with `enabled`,
   `client_id`, `secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"` (name as in the
   Supabase Google guide; the generic config reference shows `…_GOOGLE_SECRET` — use the guide's

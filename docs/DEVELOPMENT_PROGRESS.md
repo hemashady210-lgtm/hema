@@ -3,41 +3,49 @@
 ## Current phase: P2 Database & security · **complete — awaiting owner review**. P3 not started (needs a plan + owner approval)
 
 Last updated: 2026-11-26 (P2 session). Phases follow the 17-phase plan in `ROADMAP.md` (E3).
-Branch `claude/phase-p2-database-security-sgovxe`, draft PR #2 → `main`.
+Branch `claude/phase-p2-database-security-sgovxe`. PR #2 (P2) merged into `main` on 2026-11-26;
+PR #3 carries the owner-decision follow-up (F1, F3).
 
 ## P2 summary (latest verified working state)
 
 - **Supabase dev project `ai-crm-dev`** (ref `jpzgdyzbhszyrvzcsljq`, `eu-west-1`, Postgres 17.12):
-  **15 migrations applied** and recorded in `supabase_migrations.schema_migrations`; **pgTAP
-  459/459** there (8 suites). No demo seed and no test data on the project (checked after every
+  **16 migrations applied** and recorded in `supabase_migrations.schema_migrations`; **pgTAP
+  482/482** there (8 suites). No demo seed and no test data on the project (checked after every
   run).
 - **CI** (GitHub Actions, job `db`, Supabase CLI 2.122.1 local stack): migrations + `seed.sql` +
-  **459/459** + `supabase db lint` clean; job `checks` (lint, format, typecheck, test) green.
-- **Local harness** (`pnpm db:test:local`, plain Postgres 16 + stubs): 459/459.
+  **482/482** + `supabase db lint` clean; job `checks` (lint, format, typecheck, test) green.
+- **Local harness** (`pnpm db:test:local`, plain Postgres 16 + stubs): 482/482.
 - `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test` pass (no package tests yet).
 
 ### Done
 
-| Milestone | What                                                                                                                                                                              | Commit                   |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| M1        | Doc renames (E11): `API.md`, `INTEGRATIONS.md`, `TESTING.md`, `RISKS.md` + all references                                                                                         | `5e0fc2d`                |
-| M2        | `supabase/config.toml`, Management-API runner `scripts/db/supabase-remote.mjs` (status / migrate / test / types), local harness, CI job `db`                                      | `e9b7bce`                |
-| M3        | 12 migrations rewritten in place with the approved E9 rename list + E4/E5/E10 statuses, security fixes, composite FKs                                                             | `03fb786`                |
-| M4        | All missing tables (gap list), `channel_credentials` (service role only, Vault), `retry_job()`, versioned `bot_configs`, partitioned analytics, feature flags; pgTAP suites 03–08 | `c669606`                |
-| M5        | Applied to the dev project; full pgTAP there; `packages/shared/src/database.types.ts`; `supabase/seed.sql` (local/CI only)                                                        | `1687bee`                |
-| M6        | Docs synced with §E (ARCHITECTURE, DATABASE + ERD + RLS matrix, API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING, RISKS, DESIGN_SYSTEM); new `SECURITY.md`, `DEPLOYMENT.md`         | `2caa991`                |
-| M7        | code-reviewer + security-reviewer subagents; all verified findings fixed in forward migration `…20261126000100_p2_review_fixes` + regression tests; runner + seed hardening; docs | `ddf848a` + final commit |
+| Milestone | What                                                                                                                                                                                                                        | Commit                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| M1        | Doc renames (E11): `API.md`, `INTEGRATIONS.md`, `TESTING.md`, `RISKS.md` + all references                                                                                                                                   | `5e0fc2d`                                                   |
+| M2        | `supabase/config.toml`, Management-API runner `scripts/db/supabase-remote.mjs` (status / migrate / test / types), local harness, CI job `db`                                                                                | `e9b7bce`                                                   |
+| M3        | 12 migrations rewritten in place with the approved E9 rename list + E4/E5/E10 statuses, security fixes, composite FKs                                                                                                       | `03fb786`                                                   |
+| M4        | All missing tables (gap list), `channel_credentials` (service role only, Vault), `retry_job()`, versioned `bot_configs`, partitioned analytics, feature flags; pgTAP suites 03–08                                           | `c669606`                                                   |
+| M5        | Applied to the dev project; full pgTAP there; `packages/shared/src/database.types.ts`; `supabase/seed.sql` (local/CI only)                                                                                                  | `1687bee`                                                   |
+| M6        | Docs synced with §E (ARCHITECTURE, DATABASE + ERD + RLS matrix, API, AI_ENGINE, BILLING, INTEGRATIONS, TESTING, RISKS, DESIGN_SYSTEM); new `SECURITY.md`, `DEPLOYMENT.md`                                                   | `2caa991`                                                   |
+| M7        | code-reviewer + security-reviewer subagents; all verified findings fixed in forward migration `…20261126000100_p2_review_fixes` + regression tests; runner + seed hardening; docs                                           | `ddf848a`, `75c3484`                                        |
+| F1 + F3   | Owner decisions (DECISIONS §F): soft delete with retained, detached billing records (5-year configurable retention) + content row limits as entitlements — migration `…20261126000200_retention_and_content_limits` + tests | PR #3 (`6dde9fb`, `2075f77`, merge of `main`, final commit) |
 
 Review results: security review — no critical/high; 5 medium, 4 low, hardening items → all fixed.
-Code review — 12 important + nits → fixed, except the two owner decisions below. Details:
-`SECURITY.md §7`.
+Code review — 12 important + nits → fixed; the two open decisions were taken by the owner (F1,
+F2) and F1/F3 are implemented. Details: `SECURITY.md §7`, `DECISIONS.md §F`.
 
 ### Verified (ran and passed)
 
 - Every migration applies on the dev project, in CI (Supabase local stack) and locally.
 - Role matrix: every tenant table × select/insert/update/delete × owner/admin/agent/viewer/other
-  tenant/anon, plus platform tables, limit-leak probes, read-only workspace, full workspace
-  hard delete (suite 04).
+  tenant/anon, plus platform tables, limit-leak probes, read-only workspace, and the F1 soft
+  delete of a fully populated workspace: billing records kept + detached + unreadable, every
+  other tenant table purged, Vault token removed, final purge after retention (suite 04).
+- Content limits per plan (F3): seeded values, 30/50/5 trial limits hit at the right row, file
+  size limit, manual notes not counted, override raises the limit (suite 02).
+- Migration 0014 on the dev project: retention setting 1825 days and every content limit present;
+  `soft_delete_workspace` / `purge_deleted_workspaces` refused to `anon` through the REST API
+  (`42501`); project left with no test data.
 - Catalog-wide conventions incl. service-only tables, `anon` scope, function grants, empty
   `search_path`, immutable `workspace_id`, storage policies (suite 03).
 - Cross-tenant references blocked by composite FKs; retrieval scoped per workspace (suite 05).
@@ -63,32 +71,34 @@ Code review — 12 important + nits → fixed, except the two owner decisions be
 - Partitions exist through Feb 2027; the scheduler must run `ensure_analytics_partitions()`
   monthly (P10).
 - Demo seed users cannot sign in (no `auth.identities`; P3).
+- The deletion job that calls `soft_delete_workspace` (after Storage API cleanup) and the
+  scheduled `purge_deleted_workspaces` are P10; legal billing retention per country = needs
+  verification.
 - Supabase's platform event trigger `public.rls_auto_enable()` exists on the dev project (not
   ours; excluded from the convention check) — **needs verification** of what it does.
+
+### Owner decisions taken (2026-11-26, DECISIONS §F)
+
+F1 soft delete + 5-year retained billing records (implemented) · F2 no history rewrite, trailer
+rule from now on (in effect) · F3 content row limits (implemented) · F4 production project in
+Frankfurt in P17 · F5 new-style Supabase keys from P3.
 
 ### Needs owner action
 
 1. **Revoke the Supabase personal access token used in P2** (Dashboard → Account → Access
    Tokens) and the network secret for `api.supabase.com` in the environment settings; create a
    new one only when the next phase needs it.
-2. **Decide: billing records on workspace deletion.** Today `payment_transactions`,
-   `billing_events` and `invoices_records` cascade with the workspace; C8 / DATABASE §7 expect
-   retention (anonymized). Options: archive before delete (P10 job) or retained FKs (legal
-   retention per country = needs verification).
-3. **Decide: commit trailers.** Earlier P2 commits carry `Co-Authored-By: Claude Opus 5.5`;
-   CLAUDE.md forbids model identifiers. Later commits use `Claude` only. Rewriting history needs
-   a force-push of this branch — say if you want it.
-4. **Decide (optional):** per-plan row quotas for FAQs / catalog items (cost control on trials).
-5. Production project must be created in **Frankfurt** (dev is in Ireland, RISKS R-20).
-6. Switch the environment to new-style Supabase keys before early 2027 (RISKS R-21).
-7. Set `main` as the GitHub default branch (Settings → General), if not done yet.
-8. Review and merge PR #2 (currently a draft).
+2. For P3 (F5): put the **new-style keys** in the environment (`sb_publishable_…` for the
+   browser-safe key, `sb_secret_…` for the server key).
+3. Set `main` as the GitHub default branch (Settings → General), if not done yet.
+4. Review and merge PR #3 (F1 + F3 follow-up; PR #2 is already merged).
 
 ### Next: P3 Auth, workspaces, app shell, i18n, tokens (not started)
 
 Start by presenting a P3 plan for approval (`ROADMAP.md` P3). P2 leaves ready: the full schema on
 the dev project, generated DB types in `@ai-crm/shared`, the runner and CI. P3 must verify R-14
-with the first Edge Function and wire Google sign-in per `DEPLOYMENT.md §6`.
+with the first Edge Function, wire Google sign-in per `DEPLOYMENT.md §6`, and use only the
+new-style Supabase keys (F5).
 
 ### How to resume
 
