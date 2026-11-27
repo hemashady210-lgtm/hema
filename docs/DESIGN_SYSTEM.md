@@ -290,27 +290,41 @@ onboarding, a static echo in empty states. Everything else stays quiet.
 Effects live in `apps/dashboard/src/components/effects/`, rebuilt with **Motion + Tailwind**
 (the 21st.dev registry requires a signed-in account/API key — H3):
 
-| Effect             | Where                                         | How                                                                                                    |
-| ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `AnimatedGradient` | auth panel, onboarding, empty-state backdrops | slow CSS drift of two radial lights (`transform` only)                                                 |
-| `GlowBorder`       | plan/upgrade card, onboarding preview card    | masked conic gradient ring; rotation off under reduced motion                                          |
-| `SpotlightCard`    | KPI cards, plan cards                         | pointer-follow radial highlight via CSS variables (no renders)                                         |
-| `TiltCard`         | onboarding workspace preview                  | ≤ 8° 3D tilt from pointer; horizontal sign flips in RTL                                                |
-| `FloatingShapes`   | empty states, 404                             | CSS 3D glass shapes, slow float; static under reduced motion                                           |
-| `AnimatedBeam`     | auth panel (channels → core)                  | SVG path + travelling gradient; flows toward the core                                                  |
-| `ShimmerButton`    | upgrade / plan CTA only                       | one sheen sweep in reading direction; none when reduced                                                |
-| `NumberTicker`     | KPI / usage values                            | spring count-up, `Intl` per locale + numeral style, `tabular-nums`; screen readers get the final value |
-| `BrandScene3D`     | desktop auth panel only                       | react-three-fiber glass core, lazy chunk, static poster first                                          |
+| Effect             | Where                                    | How                                                                                                   |
+| ------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `AnimatedGradient` | auth brand panel only                    | slow CSS drift of two radial lights (`transform` only); elsewhere the static `bg-aurora` utility      |
+| `GlowBorder`       | onboarding preview card, invitation card | masked conic gradient ring; rotation off under reduced motion                                         |
+| `SpotlightCard`    | Overview plan & usage cards              | pointer-follow radial highlight via CSS variables (no renders); fine pointers only                    |
+| `TiltCard`         | onboarding workspace preview             | ≤ 8° 3D tilt from pointer; horizontal sign flips in RTL                                               |
+| `FloatingShapes`   | empty states, 404                        | CSS 3D glass shapes, slow float; static under reduced motion                                          |
+| `AnimatedBeam`     | auth panel (channels → core)             | SVG path + travelling gradient; flows toward the core                                                 |
+| `ShimmerButton`    | upgrade / plan CTA only                  | one sheen sweep in reading direction; none when reduced                                               |
+| `NumberTicker`     | KPI / usage values                       | 900 ms ease-out on the frame clock, continues from the shown value; `Intl`, `tabular-nums`; SR: final |
+| `BrandScene3D`     | desktop auth panel only                  | react-three-fiber glass core, lazy chunk, static poster first                                         |
 
 **Never in:** tables, the inbox, forms, dialogs, menus, the sidebar or the top bar — dense
 surfaces stay clean and fast.
 
 **Rules:** transform/opacity only; one orchestrated moment per screen; pause off-screen
-(IntersectionObserver) and in hidden tabs; fixed-size boxes so nothing shifts (CLS 0);
-`prefers-reduced-motion` → final static frame; reduced transparency/increased contrast →
-opaque, no glow; directional motion mirrors in RTL (beams, shimmer, tilt) while logos and
-real-world objects don't. WebGL loads only when: viewport ≥ 1024 px, no reduced motion, no
-Save-Data, WebGL2 available, ≥ 4 CPU cores — after the page is idle; DPR capped at 1.5.
+(IntersectionObserver — the latest of batched entries wins) and in hidden tabs; fixed-size
+boxes so nothing shifts (CLS 0); `prefers-reduced-motion` → final static frame; directional
+motion mirrors in RTL (beams, shimmer, tilt, the navigation bar) while logos and real-world
+objects don't. WebGL loads only when: viewport ≥ 64rem (1024 px at the default font size, same
+as Tailwind `lg`), no reduced motion, no Save-Data, WebGL2 available, ≥ 4 CPU cores, and
+neither setting below is on — after the page is idle; DPR capped at 1.5.
+
+**Increase Contrast** (`prefers-contrast: more`) and **Reduce Transparency**
+(`prefers-reduced-transparency: reduce`) remove every purely decorative layer: no
+`FloatingShapes`, no `AnimatedGradient`, no core halo, no WebGL (the static core poster stays),
+`aurora-*` and `card-sheen` transparent/none, `.decor-light` hidden and `.decor-glow` shadows
+off. The `glow-*` / `elevation-glow` tokens are `none` under Reduce Transparency; under Increase
+Contrast they become crisp 2 px solid rings (an edge, no blur). `forced-colors: active` drops
+the aurora and keeps real card borders. Covered by `src/test/effects.test.tsx` (components) and
+`e2e/surfaces.spec.ts` (real CSS: both settings, plus the phone aurora in ar/en).
+
+**Phones:** auth screens show the static `bg-aurora` behind the form below `lg` (the brand
+panel, with its moving light, is desktop-only). `bg-aurora` is a Tailwind `@utility`, so
+variants such as `max-lg:bg-aurora` generate CSS.
 
 ## 15. Performance budgets (H5)
 
@@ -318,20 +332,30 @@ Save-Data, WebGL2 available, ≥ 4 CPU cores — after the page is idle; DPR cap
 Vite manifest and fails when a budget is exceeded. Gzip (level 9), first visit = entry + the
 route's static import graph:
 
-| Measure                                   | Before (P3, one 1,122.6 kB file) | After design pass | Budget |
-| ----------------------------------------- | -------------------------------- | ----------------- | ------ |
-| First visit: sign-in                      | 332.8 kB                         | 304.7 kB          | 315 kB |
-| First visit: sign-up                      | 332.8 kB                         | 302.5 kB          | 315 kB |
-| First visit: create workspace             | 332.8 kB                         | 312.6 kB          | 320 kB |
-| First visit: workspace overview           | 332.8 kB                         | 312.9 kB          | 320 kB |
-| First visit: members                      | 332.8 kB                         | 332.7 kB          | 340 kB |
-| Brand panel + effects (lazy, ≥ 1024 px)   | —                                | 4.0 kB            | 45 kB  |
-| WebGL scene (lazy, capable desktops only) | —                                | 234.9 kB          | 260 kB |
-| All CSS                                   | 11.9 kB                          | 15.2 kB           | 16 kB  |
+| Measure                                   | Before (P3, one 1,122.6 kB file) | After design pass | After review fixes | Budget |
+| ----------------------------------------- | -------------------------------- | ----------------- | ------------------ | ------ |
+| First visit: sign-in                      | 332.8 kB                         | 304.7 kB          | 305.7 kB           | 315 kB |
+| First visit: sign-up                      | 332.8 kB                         | 302.5 kB          | 303.4 kB           | 315 kB |
+| First visit: create workspace             | 332.8 kB                         | 312.6 kB          | 313.6 kB           | 320 kB |
+| First visit: workspace overview           | 332.8 kB                         | 312.9 kB          | 314.5 kB           | 320 kB |
+| First visit: members                      | 332.8 kB                         | 332.7 kB          | 333.9 kB           | 340 kB |
+| Brand panel + effects (lazy, ≥ 64rem)     | —                                | 4.0 kB            | 4.1 kB             | 45 kB  |
+| Workspace preview (lazy, onboarding)      | —                                | not tracked       | 37.0 kB            | 40 kB  |
+| WebGL scene (lazy, capable desktops only) | —                                | 234.9 kB          | 234.9 kB           | 260 kB |
+| All CSS                                   | 11.9 kB                          | 15.2 kB           | 15.6 kB            | 16 kB  |
+
+The review fixes add ~1 kB per route (navigation progress bar, stale-chunk reload guard, real
+error/empty states on Overview).
 
 The first target (≤ 230 kB) is not reachable without replacing core libraries — react-dom,
 react-router, supabase-js (auth + PostgREST + storage + realtime clients), zod, i18next and
 tailwind-merge set the floor — so the budgets are the measured sizes plus ~4 % headroom: they
 stop regressions. Effects stay off the critical path: Motion is used only by the desktop-only,
 lazily loaded tilt card; counters use `requestAnimationFrame`; the WebGL chunk never loads on
-phones, under reduced motion, with Save-Data or without WebGL2.
+phones, under reduced motion, Increase Contrast or Reduce Transparency, with Save-Data or
+without WebGL2.
+
+**Lazy pages:** while a route chunk loads for over 150 ms a thin progress bar shows at the top
+(announced as "Loading…"; grows from the inline start). After a deploy removes old chunks,
+`vite:preloadError` triggers one reload per minute (remembered in session storage; without
+storage it never auto-reloads, so it can't loop) — otherwise the route error page offers Reload.

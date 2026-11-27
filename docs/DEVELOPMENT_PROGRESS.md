@@ -2,7 +2,7 @@
 
 ## Current phase: P3 + P3 design pass · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
 
-Last updated: 2026-11-27 (P3 design pass). Phases follow `ROADMAP.md` (E3). Branches:
+Last updated: 2026-11-27 (P3 design pass + review fix round R1/R2). Phases follow `ROADMAP.md` (E3). Branches:
 `ccr-da8be7ff-ulmui2` → draft **PR #4** (P3) → `main`, stacked on **PR #3** (P2 follow-up, F1/F3;
 migration 0014 already live on the dev project); `ccr-da8be7ff-ulmui2-design` → draft **PR #5**
 (design pass) → PR #4's branch. Merge order: #3, #4, #5.
@@ -21,8 +21,8 @@ Owner-approved plan (DECISIONS §H): HIG review of every P3 screen with the vend
 | D5   | Auth: signature brand panel (beams → WebGL core on capable desktops), anchored form, hints, calmer link-failed state, invitation card hero; no plan numbers in copy (H7)                                                             | `a7fe54b` |
 | D6   | Onboarding live 3D preview + time zone fix; shell (coming-soon a11y, decluttered top bar, 44 px targets, ⌘K hints); Overview real **Plan & usage** row (H6)                                                                          | `9d1fdd0` |
 | D7   | Account name bug fix (+3 tests) and appearance previews; members seat meter + one card language; settings cards; 404 in shell                                                                                                        | `6159c05` |
-| D8   | 152 new screenshots (motion on, settled) + gallery with After / Before / Compare                                                                                                                                                     | final     |
-| D9   | code-reviewer pass + fixes, docs, PR #5                                                                                                                                                                                              | final     |
+| D8   | 152 new screenshots (motion on, settled) + gallery with After / Before / Compare                                                                                                                                                     | `2c25d54` |
+| D9   | code-reviewer pass + fixes, docs, PR #5                                                                                                                                                                                              | `ecd7618` |
 
 **Verified:** lint (incl. logical CSS), format, typecheck, Vitest 13 + 151 (12 effects, 3
 account), Deno 37, Playwright journey ar + en with axe 0 critical (lazy routes), bundle budgets
@@ -35,6 +35,29 @@ product name in health/invitation emails changes). Field-specific "required" mes
 generic because existing tests assert them. Counters use Latin digits (the auth profile does not
 load `numeral_style` yet). The trial plan is not public under RLS, so pre-workspace copy carries no
 numbers; Overview shows the real ones after creation.
+
+### Review fix round (R1 `ee03959`, R2 screenshots + docs) — UI only
+
+The PR #5 code review (5 open issues + 11 minor findings), all fixed, each with a test where it
+fits:
+
+| #    | Finding → fix                                                                                                                                                                                                                                                                                                                                                                     | Test                                          |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 1    | Appearance chosen in the user menu was device-only → saved to the profile (auth setters)                                                                                                                                                                                                                                                                                          | `user-menu.test.tsx` (fails on old code)      |
+| 2    | Plan & usage could show defaults → real error (Retry) / empty states; unknown limit says so; no subscription = "No active plan"; billing status labels; open period only                                                                                                                                                                                                          | `plan-usage.test.tsx` (6)                     |
+| 3    | Time zone followed the country over the device → device zone always wins and is never overwritten; country only without a device zone                                                                                                                                                                                                                                             | `time-zone.test.ts` (6)                       |
+| 4    | Floating shapes / glows stayed under Increase Contrast and Reduce Transparency → removed (glows become crisp 2 px rings under contrast); no WebGL                                                                                                                                                                                                                                 | `effects.test.tsx`, `e2e/surfaces.spec.ts`    |
+| 5    | Phone aurora on auth screens never rendered (`max-lg:bg-aurora` generated no CSS) → `bg-aurora` is a Tailwind `@utility`; mirrored in RTL                                                                                                                                                                                                                                         | `e2e/surfaces.spec.ts` (ar + en)              |
+| Nits | 404 Back only with in-app history; navigation progress bar; stale-chunk reload once per minute, never loops; ticker continues from shown value; beams measured before paint; latest IO entry wins; desktop query in rem; touch shows sidebar hints; bundle-check path + preview budget; Arabic caption "تُحدَّث أثناء الكتابة"; Latin email placeholder; DESIGN_SYSTEM §14/§15 drift | `navigation.test.tsx` (5), `effects.test.tsx` |
+
+Two extra bugs found while writing the tests, both fixed: the number ticker's progress could
+go negative (a frame timestamp before `performance.now()`), briefly showing a value below the
+start, e.g. "-1"; and without session storage the chunk-reload guard would have reloaded on
+every failure (a possible loop) — it now leaves that case to the error page's Reload button.
+
+**Verified (R1):** format, lint, typecheck, Vitest 13 + 176, Deno 37 (lint/check/test), build,
+bundle budgets (sign-in 305.7 kB, overview 314.5 kB, CSS 15.6 kB — all within budget),
+Playwright journey ar + en (axe 0 critical) + 5 surface checks against the local stack.
 
 ## P3 summary (latest verified working state)
 
