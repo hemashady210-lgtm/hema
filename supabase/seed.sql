@@ -30,7 +30,9 @@ values
 
 insert into public.profiles (id, full_name, locale) values
   ('d0000000-0000-0000-0000-000000000001', 'Demo Owner', 'ar'),
-  ('d0000000-0000-0000-0000-000000000002', 'Demo Agent', 'en');
+  ('d0000000-0000-0000-0000-000000000002', 'Demo Agent', 'en')
+-- The auth.users trigger (0015) already created both rows; keep the demo locales.
+on conflict (id) do update set full_name = excluded.full_name, locale = excluded.locale;
 
 insert into public.workspaces (id, name, slug, default_locale, timezone, country_code, category, created_by) values
   ('d1000000-0000-0000-0000-000000000001', 'Al Diwan Restaurant', 'demo-diwan', 'ar', 'Asia/Riyadh', 'SA', 'restaurant',

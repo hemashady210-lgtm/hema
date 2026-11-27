@@ -44,28 +44,32 @@ Brand name comes from `packages/shared/src/brand.ts` — never hardcode it.
 
 ### 2.2 Semantic tokens (dark = default, light = `data-theme="light"`)
 
-| Role                     | Dark                      | Light                  | Use                                                          |
-| ------------------------ | ------------------------- | ---------------------- | ------------------------------------------------------------ |
-| `background`             | `#07090F`                 | `#F6F8FC`              | app canvas                                                   |
-| `surface-1`              | `#0C1018`                 | `#FFFFFF`              | cards, panels                                                |
-| `surface-2`              | `#111723`                 | `#F1F4FA`              | nested panels, table header, inputs                          |
-| `surface-3`              | `#171E2C`                 | `#E8EDF6`              | hover, selected rows                                         |
-| `elevated`               | `#1C2434`                 | `#FFFFFF`              | popovers, menus, dialogs (with material)                     |
-| `border`                 | `rgb(148 170 255 / 0.10)` | `rgb(15 28 77 / 0.10)` | hairlines                                                    |
-| `border-strong`          | `rgb(148 170 255 / 0.18)` | `rgb(15 28 77 / 0.18)` | inputs, dividers that must read                              |
-| `text-primary`           | `#F2F5FC`                 | `#0B1020`              | body, titles                                                 |
-| `text-secondary`         | `#A6B0C6`                 | `#4A5470`              | supporting text                                              |
-| `text-tertiary`          | `#7A85A0`                 | `#6B7590`              | metadata, placeholders (≥ 4.5:1 on surface-1 — verify in P3) |
-| `text-disabled`          | `#4A5368`                 | `#A3ABBF`              | disabled                                                     |
-| `primary` / `primary-fg` | `#3D63F0` / `#FFFFFF`     | `#2747D1` / `#FFFFFF`  | primary buttons, selection                                   |
-| `accent`                 | `#00A8FF`                 | `#0089D6`              | focus ring, live indicators, chart highlight                 |
-| `success`                | `#2FD27F`                 | `#138A4B`              | connected, paid                                              |
-| `warning`                | `#F5B544`                 | `#B26B00`              | pending, 80 % usage                                          |
-| `danger`                 | `#FF5C6C`                 | `#C62B3B`              | error, failed payment, 100 % hard stop                       |
-| `info`                   | `#5CCBFF`                 | `#006BA8`              | in-progress                                                  |
+| Role                     | Dark                      | Light                  | Use                                                   |
+| ------------------------ | ------------------------- | ---------------------- | ----------------------------------------------------- |
+| `background`             | `#07090F`                 | `#F6F8FC`              | app canvas                                            |
+| `surface-1`              | `#0C1018`                 | `#FFFFFF`              | cards, panels                                         |
+| `surface-2`              | `#111723`                 | `#F1F4FA`              | nested panels, table header, inputs                   |
+| `surface-3`              | `#171E2C`                 | `#E8EDF6`              | hover, selected rows                                  |
+| `elevated`               | `#1C2434`                 | `#FFFFFF`              | popovers, menus, dialogs (with material)              |
+| `border`                 | `rgb(148 170 255 / 0.10)` | `rgb(15 28 77 / 0.10)` | hairlines                                             |
+| `border-strong`          | `rgb(148 170 255 / 0.18)` | `rgb(15 28 77 / 0.18)` | inputs, dividers that must read                       |
+| `text-primary`           | `#F2F5FC`                 | `#0B1020`              | body, titles                                          |
+| `text-secondary`         | `#A6B0C6`                 | `#4A5470`              | supporting text                                       |
+| `text-tertiary`          | `#808BA6`                 | `#5F6984`              | metadata, placeholders (≥ 4.5:1 on every surface, P3) |
+| `text-disabled`          | `#4A5368`                 | `#A3ABBF`              | disabled                                              |
+| `primary` / `primary-fg` | `#3D63F0` / `#FFFFFF`     | `#2747D1` / `#FFFFFF`  | primary buttons, selection                            |
+| `accent`                 | `#00A8FF`                 | `#0089D6`              | focus ring, live indicators, chart highlight          |
+| `success`                | `#2FD27F`                 | `#0E7540`              | connected, paid                                       |
+| `warning`                | `#F5B544`                 | `#8F5600`              | pending, 80 % usage                                   |
+| `danger`                 | `#FF5C6C`                 | `#C62B3B`              | error, failed payment, 100 % hard stop                |
+| `info`                   | `#5CCBFF`                 | `#006BA8`              | in-progress                                           |
 
 Contrast: `primary-fg` on `primary` ≈ 4.9:1 (AA). Every text/background pair must meet WCAG 2.2
-AA (4.5:1 body, 3:1 large text and UI glyphs); a contrast test runs in CI from P3.
+AA (4.5:1 body, 3:1 large text and UI glyphs). **P3:** `apps/dashboard/src/test/contrast.test.ts`
+checks every text/status token on every surface in both themes (CI). It caught four failures,
+fixed by darkening/lightening the smallest step: dark `text-tertiary` `#7A85A0 → #808BA6`
+(4.21:1 on `elevated`), light `text-tertiary` `#6B7590 → #5F6984`, light `success`
+`#138A4B → #0E7540`, light `warning` `#B26B00 → #8F5600` (all were < 4.5:1 on `surface-3`).
 
 ### 2.3 Data visualization
 
@@ -200,8 +204,9 @@ Arabic copy is a starting point for a native copywriter review.
 
 1. Set `<html lang dir>` from the user's locale; switching language re-renders without reload.
 2. Use **logical** utilities only: `ms-/me-`, `ps-/pe-`, `start-/end-`, `text-start/end`,
-   `border-s/e`, `rounded-s/e`. Lint rule forbids `ml-/mr-/pl-/pr-/left-/right-` in app code
-   (P3).
+   `border-s/e`, `rounded-s/e`. ESLint rule `local/logical-css` (`eslint-rules/logical-css.js`,
+   P3) forbids `ml-/mr-/pl-/pr-/left-/right-/text-left…` in app class strings; deliberate
+   `ltr:`/`rtl:` variants are allowed.
 3. User-generated content (messages, names, KB text) renders with `dir="auto"` and `<bdi>` for
    inline names/numbers inside sentences.
 4. Always-LTR islands: phone numbers, emails, URLs, code/snippets, IDs, prices with currency

@@ -45,7 +45,9 @@ insert into auth.users (id, email) values
 insert into public.profiles (id, full_name) values
   ('00000000-0000-0000-0000-0000000000a1', 'Owner A'), ('00000000-0000-0000-0000-0000000000a2', 'Admin A'),
   ('00000000-0000-0000-0000-0000000000a3', 'Agent A'), ('00000000-0000-0000-0000-0000000000a4', 'Viewer A'),
-  ('00000000-0000-0000-0000-0000000000b1', 'Owner B');
+  ('00000000-0000-0000-0000-0000000000b1', 'Owner B')
+-- profiles are auto-created by the auth.users trigger (0015); set the display names.
+on conflict (id) do update set full_name = excluded.full_name;
 insert into public.workspaces (id, name, slug) values
   ('10000000-0000-0000-0000-00000000000a', 'A', 'ws-matrix-a'),
   ('10000000-0000-0000-0000-00000000000b', 'B', 'ws-matrix-b'),

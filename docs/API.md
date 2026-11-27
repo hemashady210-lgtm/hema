@@ -1,7 +1,8 @@
 # API Specification (v1)
 
-> Contract (designed in P1, synced with DECISIONS §E in P2). Nothing here is implemented yet;
-> each route is built in the phase of its function (E7, `ROADMAP.md`). The database objects it
+> Contract (designed in P1, synced with DECISIONS §E in P2). The workspace / member / invitation
+> routes of `api` are **built and tested in P3**; every other route is built in the phase of its
+> function (E7, `ROADMAP.md`). The database objects it
 > relies on exist on the dev project since P2. Third-party payloads (Meta, PayPal) are
 > described at the level we depend on and are marked **needs verification** wherever the exact
 > vendor format, header or event name has to be confirmed against current docs before
@@ -32,8 +33,10 @@ A custom domain (`api.<product>.com` via Cloudflare) can front these later.
   24 h return the original response.
 - **Pagination:** cursor-based — `?limit=50&cursor=<opaque>` → `{ "data": [...], "next_cursor": "…" | null }`.
 - **Rate limits** (initial values, tuned later): app 120 req/min/user; public API 600 req/min/key;
-  widget 30 msg/min/visitor and 600 msg/min/widget key. Responses include `RateLimit-*` headers
-  and `429` with `Retry-After`.
+  widget 30 msg/min/visitor and 600 msg/min/widget key. A refused request gets `429` with
+  `Retry-After`. (P3: `RateLimit-*` headers on successful responses are not sent yet.) P3
+  invitation caps: 30/h per user, 50/day per workspace, 5/day per recipient, 5 renewals/day per
+  link; preview 30/10 min per IP and 3,000/10 min overall.
 
 ### Error envelope
 
@@ -64,15 +67,34 @@ A custom domain (`api.<product>.com` via Cloudflare) can front these later.
 
 ### Workspaces & members
 
-| Method | Path                                    | Role               | Description                                                                                                                                              |
-| ------ | --------------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/v1/workspaces`                        | any signed-in user | Create workspace + owner membership + 7-day trial subscription + default bot + widget connection (atomic). Body `{name, slug, default_locale, timezone}` |
-| PATCH  | `/v1/workspaces/{ws}`                   | owner/admin        | name, locale, timezone, country, category, logo (also allowed directly via RLS)                                                                          |
-| POST   | `/v1/workspaces/{ws}/invitations`       | owner/admin        | `{email, role}`; checks `max_users`; sends Resend email                                                                                                  |
-| POST   | `/v1/invitations/accept`                | invitee            | `{token}`                                                                                                                                                |
-| DELETE | `/v1/workspaces/{ws}/invitations/{id}`  | owner/admin        | revoke                                                                                                                                                   |
-| PATCH  | `/v1/workspaces/{ws}/members/{user_id}` | owner/admin        | `{role?, status?}`; owner transfer only by owner                                                                                                         |
-| DELETE | `/v1/workspaces/{ws}/members/{user_id}` | owner/admin        | remove (cannot remove owner)                                                                                                                             |
+**Built in P3** (`supabase/functions/api`, service-role RPCs from migration `…000300`, zod schemas
+in `packages/shared/src/api.ts`). Every route verifies the caller with Supabase Auth (`getUser`)
+because the function runs with `verify_jwt = false` (the preview route is public); new-style API
+keys are never accepted as user tokens. Rate limits are per user (per IP for the preview) and
+return `429` + `Retry-After`. `Idempotency-Key` is **not implemented yet**; the RPCs are
+naturally idempotent where it matters (accept replays, re-invite reissues).
+
+| Method | Path                                         | Role               | Description                                                                                                                                                                                                                                                            |
+| ------ | -------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                                    | public             | `{ok, service, product}` (product from `packages/shared`: R-14 probe)                                                                                                                                                                                                  |
+| GET    | `/v1/config`                                 | signed-in          | `{email_delivery: configured \| not_configured}` (real Resend configuration)                                                                                                                                                                                           |
+| GET    | `/v1/workspaces/slug-availability?slug=`     | signed-in          | `{slug, available}` (format, reserved list, taken)                                                                                                                                                                                                                     |
+| POST   | `/v1/workspaces`                             | verified user      | `{name, slug, category, country_code, timezone, default_locale}` → workspace + owner + 7-day trial (+ `billing_events`) + onboarding row + audit, atomic. One trial workspace per user (`platform_settings.max_trial_workspaces_per_user`) → `402 trial_limit_reached` |
+| PATCH  | (direct, supabase-js)                        | owner/admin        | name, category, country, timezone, default locale: through RLS + column grants (no route needed)                                                                                                                                                                       |
+| POST   | `/v1/workspaces/{ws}/invitations`            | owner/admin        | `{email, role: admin\|agent\|viewer, locale}`; active members + open invitations count against `max_users` (`402 plan_limit_reached`); re-inviting an address reissues; returns `{invitation, invite_url, email_status}`                                               |
+| POST   | `/v1/workspaces/{ws}/invitations/{id}/renew` | owner/admin        | new link (old token stops working), new expiry, email again                                                                                                                                                                                                            |
+| DELETE | `/v1/workspaces/{ws}/invitations/{id}`       | owner/admin        | revoke                                                                                                                                                                                                                                                                 |
+| POST   | `/v1/invitations/preview`                    | public             | `{token}` (POST keeps tokens out of URLs/logs) → workspace, role, inviter, expiry, state; email masked unless the signed-in caller owns it                                                                                                                             |
+| POST   | `/v1/invitations/accept`                     | invitee            | `{token}`; signed-in, verified email equal to the invited address; idempotent for the same user                                                                                                                                                                        |
+| PATCH  | `/v1/workspaces/{ws}/members/{user_id}`      | owner/admin        | `{role: admin\|agent\|viewer}`; never the owner, never yourself; demotion to viewer releases conversation assignments                                                                                                                                                  |
+| DELETE | `/v1/workspaces/{ws}/members/{user_id}`      | owner/admin · self | remove (never the owner) or leave (anyone but the owner); allowed on read-only workspaces                                                                                                                                                                              |
+| POST   | `/v1/workspaces/{ws}/ownership`              | owner              | `{user_id}`; the old owner becomes admin                                                                                                                                                                                                                               |
+
+Invitation email: sent through Resend only when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set;
+otherwise `email_status = not_configured` is stored and the dashboard shows the link to copy.
+DB error codes `app:<code>` map to the envelope codes in `API_ERRORS`. The default bot + widget
+channel are **not** created with the workspace (P3 decision 1): the P4 onboarding wizard's
+"first bot" step creates them.
 
 ### Bots, knowledge, catalog
 

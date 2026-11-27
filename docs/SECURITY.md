@@ -98,7 +98,7 @@ phase of each function (`ROADMAP.md`).
 | Deleted workspaces leave only billing records (F1)                    | `soft_delete_workspace`: tombstone + purge; billing kept detached, unreadable by former members         |
 | Bounded client input                                                  | size caps on flexible jsonb / array columns; asset paths scoped to the row's prefix; ISO currency codes |
 
-## 5. Edge-function controls (designed; built per phase)
+## 5. Edge-function controls (built per phase; `api` built in P3)
 
 - **Webhooks** (`webhook-meta` P13, `webhook-paypal` P12): verify `X-Hub-Signature-256` (Meta
   app secret) / PayPal verify-webhook-signature **before** parsing; reject invalid; store in
@@ -107,9 +107,15 @@ phase of each function (`ROADMAP.md`).
 - **Widget** (`widget-gateway`, P8): bot public key + exact Origin match against
   `allowed_origins` (empty = disabled) → short-lived signed session token; per-IP, per-bot and
   per-visitor rate limits; size caps; no secrets client-side; Realtime pings carry no content.
-- **API** (`api`, P3+): zod validation on every endpoint, error envelope without other tenants'
-  data, rate limits, `Idempotency-Key`; admin routes require a `platform_admins` row and write
-  `audit_logs`.
+- **API** (`api`, built in P3): `verify_jwt = false`, so every non-public route verifies the
+  caller with Supabase Auth `getUser` (revoked sessions fail); new-style API keys are never
+  accepted as user tokens. Zod validation on every body, error envelope without other tenants'
+  data (non-members get `not_found`), exact-origin CORS, request ids + JSON logs (no tokens,
+  keys or emails), Postgres fixed-window rate limits (per user, per IP from the proxy-appended
+  address, global caps; fail open on a limiter outage). Invitation tokens: 32 random bytes,
+  only the SHA-256 is stored and the token is sent by POST (not in URLs). Business rules live in
+  service-role RPCs (DATABASE §5). Still to build: `Idempotency-Key` storage, `admin/*` routes
+  (P14).
 - **Uploads**: type/size limits from entitlements, private buckets, per-workspace paths, signed
   URLs (signed upload URL vs Storage RLS = **needs verification**, P5).
 - **Prompt injection**: business instructions and KB content are data, not system prompt;
@@ -161,6 +167,23 @@ migration `…20261126000100_p2_review_fixes` with regression tests:
 | low       | Test runner's COMMIT guard missed `END` / `COMMIT AND CHAIN`                                                                                                                                                                                       | statement-level guard; applied-migration drift check               |
 | hardening | TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, SVG in public bucket, unbounded jsonb, unscoped asset paths, empty i18n, currency format, `kb_chunks.bot_id` FK, disconnect leaving tokens, queue workers finishing others' jobs, known seed password | fixed (see migration header)                                       |
 
+## 7a. P3 review (code-reviewer + security-reviewer, 2026-11-26)
+
+Fixed in forward migration `…20261126000400_p3_review_fixes` and the app; regression tests in
+pgTAP suite 10, the `api` integration test (real GoTrue) and the dashboard/Deno suites.
+
+| Severity  | Finding                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| high      | **Pre-registration account takeover**: an attacker signs up (unconfirmed) with a future invitee's email and their own password; Supabase Auth keeps that password when the real owner confirms later | Trigger clears any password set before confirmation (`private.clear_unverified_password`; same-request admin confirmations keep theirs); sign-up = email link first, then choose a password; saving a password signs out all other sessions |
+| medium    | Open invitations outlived the inviter's rights (rogue admin re-entry)                                                                                                                                | accept requires an inviter who is still an active owner/admin; removal/demotion revokes their open invitations (audited)                                                                                                                    |
+| important | Invitations accepted on a read-only workspace                                                                                                                                                        | `accept_invitation` requires a writable workspace                                                                                                                                                                                           |
+| important | Removing a member closed handoffs/conversations history and stranded assigned handoffs                                                                                                               | only open work is released; assigned handoffs return to `requested`                                                                                                                                                                         |
+| important | Invitation committed before the `APP_URL` check; email/status errors returned 500 after commit; "Sending…" shown for an unsent invite                                                                | `APP_URL` checked first; failures recorded as `failed`, link still returned; `pending` reads "Not sent yet"                                                                                                                                 |
+| low       | Account enumeration via sign-up / OTP endpoints                                                                                                                                                      | sign-up never reveals existing accounts (email-link flow); `[auth.sms] enable_confirmations = true`; the raw OTP endpoint's 422 for unknown emails is accepted platform behaviour (needs verification on hosted)                            |
+| low       | Spoofable `X-Forwarded-For` for per-IP limits                                                                                                                                                        | proxy-appended entry, IP format validated, global preview cap (header semantics on hosted = needs verification)                                                                                                                             |
+| low       | Branded phishing through invitation emails                                                                                                                                                           | no user text in subjects, link-like / bidi-spoofed names dropped, daily caps per workspace (50), recipient (5) and renewed link (5)                                                                                                         |
+| nit       | Malformed `%`-escapes in paths → 500                                                                                                                                                                 | 404                                                                                                                                                                                                                                         |
+
 ## 8. Open items
 
 - Resolved by the owner (DECISIONS §F): billing records on deletion (F1, soft delete, 5-year
@@ -169,7 +192,10 @@ migration `…20261126000100_p2_review_fixes` with regression tests:
   **needs verification**.
 - `consume_ai_reply` can only refuse playground runs when the worker passes `ai_run_id`; P7 must
   always pass it.
-- Security review / RLS audit and pen-test checklist (P16) · rate limits (P3/P8) · Realtime
+- Delete unconfirmed users older than ~24 h (scheduler, P7/P10) · confirm hosted GoTrue
+  behaviour for unconfirmed re-sign-ups and the client-IP header (needs verification) ·
+  `Idempotency-Key` storage for `api` · per-plan invitation caps (data) if abuse appears.
+- Security review / RLS audit and pen-test checklist (P16) · widget rate limits (P8) · Realtime
   broadcast authorization (**needs verification**) · legal retention rules (**needs
   verification**) · new-style Supabase keys from P3 (F5) · consider running remote pgTAP on a
   Supabase branch instead of the shared dev database · **revoke the P2 personal access token**.
