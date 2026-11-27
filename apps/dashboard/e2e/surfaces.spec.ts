@@ -94,8 +94,10 @@ test.describe('Increase Contrast and Reduce Transparency (review finding 4)', ()
       expect(tokens.at(-1)).toBe('none');
       if (plain === 'transparency') expect(tokens).toEqual(['none', 'none', 'none', 'none']);
       // Increase Contrast swaps each glow for a crisp 2 px ring (DESIGN_SYSTEM §2.2a): an edge,
-      // no blur or bloom.
-      else for (const t of tokens.slice(0, 3)) expect(t).toMatch(/^0 0 0 2px #[0-9a-f]{6}$/i);
+      // no blur or bloom. (Production CSS may shorten the hex, e.g. #6688ff → #68f.)
+      else
+        for (const t of tokens.slice(0, 3))
+          expect(t).toMatch(/^0 0 0 2px #(?:[0-9a-f]{3}|[0-9a-f]{6})$/i);
       // Glowing decoration that remains as content (the core sphere) loses its glow.
       const glows = await signIn
         .locator('.decor-glow')
