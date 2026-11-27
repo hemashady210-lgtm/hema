@@ -1,10 +1,40 @@
 # Development Progress
 
-## Current phase: P3 Auth, workspaces, app shell, i18n, tokens · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
+## Current phase: P3 + P3 design pass · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
 
-Last updated: 2026-11-26 (P3 session). Phases follow `ROADMAP.md` (E3). Branch
-`ccr-da8be7ff-ulmui2`, draft **PR #4** → `main`. PR #4 is stacked on **PR #3** (P2 follow-up, F1/F3),
-whose migration 0014 is already live on the dev project; merge #3 first.
+Last updated: 2026-11-27 (P3 design pass). Phases follow `ROADMAP.md` (E3). Branches:
+`ccr-da8be7ff-ulmui2` → draft **PR #4** (P3) → `main`, stacked on **PR #3** (P2 follow-up, F1/F3;
+migration 0014 already live on the dev project); `ccr-da8be7ff-ulmui2-design` → draft **PR #5**
+(design pass) → PR #4's branch. Merge order: #3, #4, #5.
+
+## P3 design pass (2026-11-27) — UI only
+
+Owner-approved plan (DECISIONS §H): HIG review of every P3 screen with the vendored
+`apple-design` skill, then a UI-only redesign — no auth logic, database or API changes.
+
+| Step | What                                                                                                                                                                                                                                 | Commit    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| D1   | `apple-design` skill via `npx skills add`, pinned to `91e1566` (upstream HEAD `4ac7bc7` has a duplicate `description` key the CLI rejects); safety audit: nothing unsafe                                                             | `1141e6f` |
+| D2   | Review (2 Critical, 6 High, 7 Medium, 4 Low) + redesign plan, approved with decisions 1–5                                                                                                                                            | —         |
+| D3   | **Pro Coders** brand (mark + outlined wordmark, Latin in Arabic too), tokens (brand gradient, glows, aurora, card material, Increase Contrast + forced colors, Inter optical sizes, Arabic +1/+2 px), DESIGN_SYSTEM §2.2a/§3/§13–§15 | `4761890` |
+| D4   | Effects library (Motion + Tailwind; 21st.dev registry needs an account), route code splitting, `bundle:check` budgets in CI                                                                                                          | `02534b6` |
+| D5   | Auth: signature brand panel (beams → WebGL core on capable desktops), anchored form, hints, calmer link-failed state, invitation card hero; no plan numbers in copy (H7)                                                             | `a7fe54b` |
+| D6   | Onboarding live 3D preview + time zone fix; shell (coming-soon a11y, decluttered top bar, 44 px targets, ⌘K hints); Overview real **Plan & usage** row (H6)                                                                          | `9d1fdd0` |
+| D7   | Account name bug fix (+3 tests) and appearance previews; members seat meter + one card language; settings cards; 404 in shell                                                                                                        | `6159c05` |
+| D8   | 152 new screenshots (motion on, settled) + gallery with After / Before / Compare                                                                                                                                                     | final     |
+| D9   | code-reviewer pass + fixes, docs, PR #5                                                                                                                                                                                              | final     |
+
+**Verified:** lint (incl. logical CSS), format, typecheck, Vitest 13 + 151 (12 effects, 3
+account), Deno 37, Playwright journey ar + en with axe 0 critical (lazy routes), bundle budgets
+(sign-in first visit 332.8 → 304.7 kB gzip; WebGL 234.9 kB lazy, desktop only), visual checks in
+both languages and themes, reduced-motion fallbacks (static poster, still beams).
+
+**Not done / blocked:** `api` redeploy to the dev project (H9) — the Management API returns 401
+because the personal access token was revoked; redeploy when a new scoped token exists (only the
+product name in health/invitation emails changes). Field-specific "required" messages were kept
+generic because existing tests assert them. Counters use Latin digits (the auth profile does not
+load `numeral_style` yet). The trial plan is not public under RLS, so pre-workspace copy carries no
+numbers; Overview shows the real ones after creation.
 
 ## P3 summary (latest verified working state)
 
@@ -75,7 +105,8 @@ review — 4 important + 4 nits → all fixed.
   the sandbox); the CLI local stack was used instead.
 - The sandbox's TLS proxy blocks npm downloads inside the edge-runtime container, so local runs
   here used host Deno (`pnpm dev:api`); CI uses the real edge runtime.
-- Bundle: one 820 kB JS chunk (243 kB gzip); route-level code splitting not done (perf is P16).
+- Bundle (corrected 2026-11-27): one 1,122.6 kB JS file (332.8 kB gzip) at the end of P3; route
+  splitting and budgets landed in the design pass (DESIGN_SYSTEM §15).
 - Arabic copy is a first draft for a native copywriter's review (DESIGN_SYSTEM §8).
 - Demo seed users still cannot sign in (random passwords, no identities) — local only.
 - Carried from P2: HNSW measurement (P5/P16), `consume_ai_reply` needs `ai_run_id` (P7),

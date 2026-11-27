@@ -11,6 +11,7 @@ const OUT = process.env.E2E_SCREENSHOTS_DIR ?? join(process.cwd(), 'test-results
 const API = process.env.E2E_API_URL ?? 'http://127.0.0.1:54321/functions/v1/api';
 const PUB = process.env.E2E_SUPABASE_PUBLISHABLE_KEY ?? '';
 const SECRET = process.env.E2E_SUPABASE_SECRET_KEY ?? '';
+const REDUCED = process.env.E2E_REDUCED_MOTION === '1';
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
 
 type Locale = 'ar' | 'en';
@@ -146,7 +147,9 @@ async function context(
   const ctx = await browser.newContext({
     ...VIEWPORTS[vp],
     colorScheme: theme,
-    reducedMotion: 'reduce',
+    // Design-pass captures show the real motion design at rest (counters done, WebGL core
+    // drawn); E2E_REDUCED_MOTION=1 captures the static reduced-motion frames instead.
+    reducedMotion: REDUCED ? 'reduce' : 'no-preference',
   });
   await ctx.addInitScript(
     ([l, t, s]) => {
@@ -162,7 +165,8 @@ async function context(
 async function shot(page: Page, name: string, tag: string) {
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(350);
+  // Let one-time reveals, count-ups and the lazy WebGL core settle before capturing.
+  await page.waitForTimeout(REDUCED ? 350 : 2200);
   await page.screenshot({ path: join(OUT, `${name}--${tag}.png`) });
 }
 

@@ -314,11 +314,24 @@ Save-Data, WebGL2 available, ≥ 4 CPU cores — after the page is idle; DPR cap
 
 ## 15. Performance budgets (H5)
 
-Measured with `pnpm --filter dashboard bundle:check` (gzip, CI):
+`pnpm --filter dashboard build && pnpm --filter dashboard bundle:check` (CI `checks` job) reads the
+Vite manifest and fails when a budget is exceeded. Gzip (level 9), first visit = entry + the
+route's static import graph:
 
-| Chunk                                   | Before (P3)                    | Budget   |
-| --------------------------------------- | ------------------------------ | -------- |
-| Initial JS for any route                | 332.8 kB (one 1,122.6 kB file) | ≤ 230 kB |
-| Effects (Motion + effects components)   | —                              | ≤ 45 kB  |
-| WebGL scene (three + r3f), desktop auth | —                              | ≤ 260 kB |
-| CSS                                     | 11.9 kB                        | ≤ 16 kB  |
+| Measure                                   | Before (P3, one 1,122.6 kB file) | After design pass | Budget |
+| ----------------------------------------- | -------------------------------- | ----------------- | ------ |
+| First visit: sign-in                      | 332.8 kB                         | 304.7 kB          | 315 kB |
+| First visit: sign-up                      | 332.8 kB                         | 302.5 kB          | 315 kB |
+| First visit: create workspace             | 332.8 kB                         | 312.6 kB          | 320 kB |
+| First visit: workspace overview           | 332.8 kB                         | 312.9 kB          | 320 kB |
+| First visit: members                      | 332.8 kB                         | 332.7 kB          | 340 kB |
+| Brand panel + effects (lazy, ≥ 1024 px)   | —                                | 4.0 kB            | 45 kB  |
+| WebGL scene (lazy, capable desktops only) | —                                | 234.9 kB          | 260 kB |
+| All CSS                                   | 11.9 kB                          | 15.2 kB           | 16 kB  |
+
+The first target (≤ 230 kB) is not reachable without replacing core libraries — react-dom,
+react-router, supabase-js (auth + PostgREST + storage + realtime clients), zod, i18next and
+tailwind-merge set the floor — so the budgets are the measured sizes plus ~4 % headroom: they
+stop regressions. Effects stay off the critical path: Motion is used only by the desktop-only,
+lazily loaded tilt card; counters use `requestAnimationFrame`; the WebGL chunk never loads on
+phones, under reduced motion, with Save-Data or without WebGL2.
