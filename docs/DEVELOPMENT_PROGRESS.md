@@ -58,6 +58,12 @@ every failure (a possible loop) — it now leaves that case to the error page's 
 **Verified (R1):** format, lint, typecheck, Vitest 13 + 176, Deno 37 (lint/check/test), build,
 bundle budgets (sign-in 305.7 kB, overview 314.5 kB, CSS 15.6 kB — all within budget),
 Playwright journey ar + en (axe 0 critical) + 5 surface checks against the local stack.
+CI green on `f8ac87d` / `80d8da8` (the surface check first failed on CI only: production CSS
+shortens `#6688ff` to `#68f`; the check now accepts both and passes against `vite preview`).
+**R2:** recaptured only the affected screens (13 flows; `E2E_ONLY`), kept the 74 captures that
+changed — Arabic email placeholder on sign-in/up/forgot, phone aurora on all auth screens, the
+Arabic preview caption (desktop onboarding), real Overview states (also behind the palette and
+menus), touch hints in the phone menu, 404 without Back — and updated the private gallery.
 
 ## P3 summary (latest verified working state)
 
