@@ -26,6 +26,7 @@ export const ar: Translation = {
     showPassword: 'إظهار كلمة المرور',
     hidePassword: 'إخفاء كلمة المرور',
     somethingWrong: 'حدث خطأ ما',
+    emailPlaceholder: 'مثال: name@company.com',
   },
   validation: {
     required: 'هذا الحقل مطلوب.',
@@ -74,6 +75,13 @@ export const ar: Translation = {
       englishMessage: 'Do you deliver to Al Olaya?',
       englishReply: 'Yes — delivery to Al Olaya takes about 35 minutes.',
       channels: 'واتساب · إنستغرام · ماسنجر · الموقع',
+      nodes: {
+        whatsapp: 'واتساب',
+        instagram: 'إنستغرام',
+        messenger: 'ماسنجر',
+        website: 'دردشة الموقع',
+      },
+      stageLabel: 'كل القنوات تصل إلى مساعد واحد',
       points: {
         bilingual: 'العربية والإنجليزية، مع اللهجتين الخليجية والمصرية',
         grounded: 'يجيب فقط من قائمتك وأوقات عملك وسياساتك',
@@ -104,7 +112,7 @@ export const ar: Translation = {
     },
     signUp: {
       title: 'أنشئ حسابك',
-      subtitle: 'ابدأ تجربة مجانية لمدة 7 أيام. دون بطاقة دفع.',
+      subtitle: 'ابدأ تجربة مجانية. دون بطاقة دفع.',
       fullName: 'الاسم الكامل',
       email: 'بريد العمل',
       howItWorks: 'سنرسل إليك رابطًا لتأكيد بريدك، ثم تختار كلمة المرور.',
@@ -191,7 +199,8 @@ export const ar: Translation = {
       defaultLocaleHelp: 'يظل المساعد يردّ على كل عميل بلغته.',
       submit: 'إنشاء مساحة العمل',
       submitting: 'جارٍ الإنشاء…',
-      trialNote: 'تبدأ تجربتك لمدة 7 أيام الآن: 100 رد ذكي، ودردشة الموقع، وعضو واحد في الفريق.',
+      trialNote:
+        'تبدأ تجربتك المجانية عند إنشاء مساحة العمل، وتظهر حدودها والأيام المتبقية في صفحة النظرة العامة.',
       created: 'تم إنشاء مساحة العمل.',
     },
     categories: {
@@ -400,6 +409,7 @@ export const ar: Translation = {
     invitedAs: 'أنت مدعو بدور {{role}}.',
     sentTo: 'أُرسلت إلى {{email}}',
     expires: 'تنتهي في {{date}}',
+    expiresLabel: 'تاريخ الانتهاء',
     signInToAccept: 'سجّل الدخول للقبول',
     signUpToAccept: 'أنشئ حسابًا',
     accept: 'قبول والانضمام',

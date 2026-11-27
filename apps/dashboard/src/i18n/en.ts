@@ -25,6 +25,7 @@ export const en = {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     somethingWrong: 'Something went wrong',
+    emailPlaceholder: 'name@company.com',
   },
   validation: {
     required: 'This field is required.',
@@ -73,6 +74,13 @@ export const en = {
       englishMessage: 'Do you deliver to Al Olaya?',
       englishReply: 'Yes — delivery to Al Olaya takes about 35 minutes.',
       channels: 'WhatsApp · Instagram · Messenger · Website',
+      nodes: {
+        whatsapp: 'WhatsApp',
+        instagram: 'Instagram',
+        messenger: 'Messenger',
+        website: 'Website chat',
+      },
+      stageLabel: 'Every channel lands with one assistant',
       points: {
         bilingual: 'Arabic and English, with Gulf and Egyptian dialects',
         grounded: 'Answers only from your menu, hours and policies',
@@ -103,7 +111,7 @@ export const en = {
     },
     signUp: {
       title: 'Create your account',
-      subtitle: 'Start a 7-day free trial. No card required.',
+      subtitle: 'Start a free trial. No card required.',
       fullName: 'Full name',
       email: 'Work email',
       howItWorks: 'We’ll email you a link to confirm your address. Then you’ll choose a password.',
@@ -190,7 +198,9 @@ export const en = {
       defaultLocaleHelp: 'The assistant still replies in each customer’s own language.',
       submit: 'Create workspace',
       submitting: 'Creating…',
-      trialNote: 'Your 7-day trial starts now: 100 AI replies, website chat, 1 team member.',
+      // No limits in copy: plans and limits are data (DECISIONS H7); Overview shows the real ones.
+      trialNote:
+        'Your free trial starts when you create the workspace. Its limits and days left appear on Overview.',
       created: 'Workspace created.',
     },
     categories: {
@@ -404,6 +414,7 @@ export const en = {
     invitedAs: 'You’re invited as {{role}}.',
     sentTo: 'Sent to {{email}}',
     expires: 'Expires {{date}}',
+    expiresLabel: 'Expires',
     signInToAccept: 'Sign in to accept',
     signUpToAccept: 'Create an account',
     accept: 'Accept and join',

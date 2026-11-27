@@ -54,6 +54,7 @@ export function ForgotPasswordPage() {
               autoComplete="email"
               inputMode="email"
               dir="ltr"
+              placeholder={t('common.emailPlaceholder')}
               {...form.register('email')}
             />
           </Field>

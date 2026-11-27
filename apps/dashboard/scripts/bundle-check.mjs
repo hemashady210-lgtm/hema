@@ -67,23 +67,23 @@ for (const [name, [mods, budgetKb]] of Object.entries(routes)) {
 const minus = (a, b) => new Set([...a].filter((x) => !b.has(x)));
 const webglKey = 'src/components/effects/brand-scene-3d.tsx';
 const webgl = manifest[webglKey] ? size(files(minus(closure(webglKey), entry), 'js')) : 0;
-const effectKeys = Object.keys(manifest).filter(
-  (k) => k.startsWith('src/components/effects/') && k !== webglKey,
-);
-const effectsSet = new Set();
-for (const k of effectKeys) closure(k, effectsSet);
-const effects = effectKeys.length ? size(files(minus(effectsSet, entry), 'js')) : 0;
+// The desktop brand panel (effects + beams + CSS poster) is a lazy chunk on top of sign-in.
+const panelKey = 'src/features/auth/BrandPanel.tsx';
+const signInSet = closure('src/features/auth/SignInPage.tsx', new Set(entry));
+const effects = manifest[panelKey]
+  ? size(files(minus(minus(closure(panelKey), signInSet), closure(webglKey)), 'js'))
+  : 0;
 const totalCss = size(files(new Set(Object.keys(manifest)), 'css'));
 
 console.log('\nBundle (gzip, level 9)\n');
 for (const [name, js, css] of rows)
   console.log(`  ${name.padEnd(30)} JS ${kb(js).padStart(9)}   CSS ${kb(css).padStart(8)}`);
-console.log(`  ${'effects chunks (lazy)'.padEnd(30)} JS ${kb(effects).padStart(9)}`);
+console.log(`  ${'brand panel + effects (lazy)'.padEnd(30)} JS ${kb(effects).padStart(9)}`);
 console.log(`  ${'WebGL scene (lazy, desktop)'.padEnd(30)} JS ${kb(webgl).padStart(9)}`);
 console.log(`  ${'all CSS'.padEnd(30)}              CSS ${kb(totalCss).padStart(8)}\n`);
 
 if (totalCss > budgets.css) failures.push(`CSS ${kb(totalCss)} > ${kb(budgets.css)}`);
-if (effects > budgets.effects) failures.push(`effects ${kb(effects)} > ${kb(budgets.effects)}`);
+if (effects > budgets.effects) failures.push(`brand panel ${kb(effects)} > ${kb(budgets.effects)}`);
 if (webgl > budgets.webgl) failures.push(`WebGL ${kb(webgl)} > ${kb(budgets.webgl)}`);
 if (failures.length) {
   console.error(`Over budget:\n  ${failures.join('\n  ')}`);

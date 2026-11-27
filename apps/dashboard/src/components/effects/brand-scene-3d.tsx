@@ -22,7 +22,7 @@ export default function BrandScene3D({
       <Canvas
         dpr={[1, 1.5]}
         frameloop={active ? 'always' : 'never'}
-        camera={{ position: [0, 0, 5.2], fov: 34 }}
+        camera={{ position: [0, 0, 6.2], fov: 34 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         onCreated={({ gl }) => {
           gl.setClearColor(0x000000, 0);
@@ -85,7 +85,7 @@ const NODE_COLORS = ['#2ebbff', '#7c95ff', '#5ccbff', '#8b7bff'];
 
 function Orbit() {
   const ring = useRef<THREE.Group>(null);
-  const ringGeometry = useMemo(() => new THREE.TorusGeometry(1.95, 0.006, 8, 160), []);
+  const ringGeometry = useMemo(() => new THREE.TorusGeometry(1.62, 0.006, 8, 160), []);
   useFrame((_, delta) => {
     if (ring.current) ring.current.rotation.z += delta * 0.22;
   });
@@ -98,7 +98,7 @@ function Orbit() {
         {NODE_COLORS.map((color, i) => {
           const a = (i / NODE_COLORS.length) * Math.PI * 2;
           return (
-            <mesh key={color} position={[Math.cos(a) * 1.95, Math.sin(a) * 1.95, 0]}>
+            <mesh key={color} position={[Math.cos(a) * 1.62, Math.sin(a) * 1.62, 0]}>
               <sphereGeometry args={[0.075, 16, 16]} />
               <meshBasicMaterial color={color} />
             </mesh>

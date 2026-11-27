@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { AnimatedGradient, FloatingShapes } from '@/components/effects/ambient';
 import { AnimatedBeams } from '@/components/effects/animated-beam';
 import { BrandCore } from '@/components/effects/brand-core';
-import { TiltCard } from '@/components/effects/cards';
+import { TiltCard } from '@/components/effects/tilt-card';
 import { canUseWebGL } from '@/components/effects/env';
 import { NumberTicker } from '@/components/effects/number-ticker';
 import { ShimmerButton } from '@/components/effects/shimmer-button';
