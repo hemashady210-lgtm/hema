@@ -7,7 +7,7 @@ import { InlineAlert } from '@/components/inline-alert';
 import { errorMessage } from '@/lib/errors';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/lib/use-document-title';
-import { AuthHeading } from './AuthLayout';
+import { AuthHeading, AuthStatusIcon } from './AuthLayout';
 import { callbackUrl, setPasswordPath, useNextPath, withNext } from './shared';
 
 export function CheckEmailPage() {
@@ -35,10 +35,12 @@ export function CheckEmailPage() {
 
   return (
     <>
-      <span className="mb-6 grid size-12 place-items-center rounded-xl bg-primary/12 text-royal-300 ring-1 ring-primary/30 light:text-primary">
-        <MailCheck aria-hidden className="size-6" strokeWidth={1.5} />
-      </span>
       <AuthHeading
+        icon={
+          <AuthStatusIcon>
+            <MailCheck className="size-5" strokeWidth={1.75} />
+          </AuthStatusIcon>
+        }
         title={t('auth.checkEmail.title')}
         subtitle={<span>{t('auth.checkEmail.body', { email: '⁨' + email + '⁩' })}</span>}
       />
@@ -62,7 +64,7 @@ export function CheckEmailPage() {
         </div>
         <Link
           to={withNext('/auth/sign-up', next)}
-          className="text-callout text-royal-300 hover:underline light:text-primary"
+          className="inline-flex min-h-6 items-center self-start text-callout text-royal-300 hover:underline light:text-primary"
         >
           {t('auth.checkEmail.useAnother')}
         </Link>

@@ -1,10 +1,69 @@
 # Development Progress
 
-## Current phase: P3 Auth, workspaces, app shell, i18n, tokens · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
+## Current phase: P3 + P3 design pass · **complete — awaiting owner review**. P4 not started (needs a plan + owner approval)
 
-Last updated: 2026-11-26 (P3 session). Phases follow `ROADMAP.md` (E3). Branch
-`ccr-da8be7ff-ulmui2`, draft **PR #4** → `main`. PR #4 is stacked on **PR #3** (P2 follow-up, F1/F3),
-whose migration 0014 is already live on the dev project; merge #3 first.
+Last updated: 2026-11-27 (P3 design pass + review fix round R1/R2). Phases follow `ROADMAP.md` (E3). Branches:
+`ccr-da8be7ff-ulmui2` → draft **PR #4** (P3) → `main`, stacked on **PR #3** (P2 follow-up, F1/F3;
+migration 0014 already live on the dev project); `ccr-da8be7ff-ulmui2-design` → draft **PR #5**
+(design pass) → PR #4's branch. Merge order: #3, #4, #5.
+
+## P3 design pass (2026-11-27) — UI only
+
+Owner-approved plan (DECISIONS §H): HIG review of every P3 screen with the vendored
+`apple-design` skill, then a UI-only redesign — no auth logic, database or API changes.
+
+| Step | What                                                                                                                                                                                                                                 | Commit    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| D1   | `apple-design` skill via `npx skills add`, pinned to `91e1566` (upstream HEAD `4ac7bc7` has a duplicate `description` key the CLI rejects); safety audit: nothing unsafe                                                             | `1141e6f` |
+| D2   | Review (2 Critical, 6 High, 7 Medium, 4 Low) + redesign plan, approved with decisions 1–5                                                                                                                                            | —         |
+| D3   | **Pro Coders** brand (mark + outlined wordmark, Latin in Arabic too), tokens (brand gradient, glows, aurora, card material, Increase Contrast + forced colors, Inter optical sizes, Arabic +1/+2 px), DESIGN_SYSTEM §2.2a/§3/§13–§15 | `4761890` |
+| D4   | Effects library (Motion + Tailwind; 21st.dev registry needs an account), route code splitting, `bundle:check` budgets in CI                                                                                                          | `02534b6` |
+| D5   | Auth: signature brand panel (beams → WebGL core on capable desktops), anchored form, hints, calmer link-failed state, invitation card hero; no plan numbers in copy (H7)                                                             | `a7fe54b` |
+| D6   | Onboarding live 3D preview + time zone fix; shell (coming-soon a11y, decluttered top bar, 44 px targets, ⌘K hints); Overview real **Plan & usage** row (H6)                                                                          | `9d1fdd0` |
+| D7   | Account name bug fix (+3 tests) and appearance previews; members seat meter + one card language; settings cards; 404 in shell                                                                                                        | `6159c05` |
+| D8   | 152 new screenshots (motion on, settled) + gallery with After / Before / Compare                                                                                                                                                     | `2c25d54` |
+| D9   | code-reviewer pass + fixes, docs, PR #5                                                                                                                                                                                              | `ecd7618` |
+
+**Verified:** lint (incl. logical CSS), format, typecheck, Vitest 13 + 151 (12 effects, 3
+account), Deno 37, Playwright journey ar + en with axe 0 critical (lazy routes), bundle budgets
+(sign-in first visit 332.8 → 304.7 kB gzip; WebGL 234.9 kB lazy, desktop only), visual checks in
+both languages and themes, reduced-motion fallbacks (static poster, still beams).
+
+**Not done / blocked:** `api` redeploy to the dev project (H9) — the Management API returns 401
+because the personal access token was revoked; redeploy when a new scoped token exists (only the
+product name in health/invitation emails changes). Field-specific "required" messages were kept
+generic because existing tests assert them. Counters use Latin digits (the auth profile does not
+load `numeral_style` yet). The trial plan is not public under RLS, so pre-workspace copy carries no
+numbers; Overview shows the real ones after creation.
+
+### Review fix round (R1 `ee03959`, R2 screenshots + docs) — UI only
+
+The PR #5 code review (5 open issues + 11 minor findings), all fixed, each with a test where it
+fits:
+
+| #    | Finding → fix                                                                                                                                                                                                                                                                                                                                                                     | Test                                          |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 1    | Appearance chosen in the user menu was device-only → saved to the profile (auth setters)                                                                                                                                                                                                                                                                                          | `user-menu.test.tsx` (fails on old code)      |
+| 2    | Plan & usage could show defaults → real error (Retry) / empty states; unknown limit says so; no subscription = "No active plan"; billing status labels; open period only                                                                                                                                                                                                          | `plan-usage.test.tsx` (6)                     |
+| 3    | Time zone followed the country over the device → device zone always wins and is never overwritten; country only without a device zone                                                                                                                                                                                                                                             | `time-zone.test.ts` (6)                       |
+| 4    | Floating shapes / glows stayed under Increase Contrast and Reduce Transparency → removed (glows become crisp 2 px rings under contrast); no WebGL                                                                                                                                                                                                                                 | `effects.test.tsx`, `e2e/surfaces.spec.ts`    |
+| 5    | Phone aurora on auth screens never rendered (`max-lg:bg-aurora` generated no CSS) → `bg-aurora` is a Tailwind `@utility`; mirrored in RTL                                                                                                                                                                                                                                         | `e2e/surfaces.spec.ts` (ar + en)              |
+| Nits | 404 Back only with in-app history; navigation progress bar; stale-chunk reload once per minute, never loops; ticker continues from shown value; beams measured before paint; latest IO entry wins; desktop query in rem; touch shows sidebar hints; bundle-check path + preview budget; Arabic caption "تُحدَّث أثناء الكتابة"; Latin email placeholder; DESIGN_SYSTEM §14/§15 drift | `navigation.test.tsx` (5), `effects.test.tsx` |
+
+Two extra bugs found while writing the tests, both fixed: the number ticker's progress could
+go negative (a frame timestamp before `performance.now()`), briefly showing a value below the
+start, e.g. "-1"; and without session storage the chunk-reload guard would have reloaded on
+every failure (a possible loop) — it now leaves that case to the error page's Reload button.
+
+**Verified (R1):** format, lint, typecheck, Vitest 13 + 176, Deno 37 (lint/check/test), build,
+bundle budgets (sign-in 305.7 kB, overview 314.5 kB, CSS 15.6 kB — all within budget),
+Playwright journey ar + en (axe 0 critical) + 5 surface checks against the local stack.
+CI green on `f8ac87d` / `80d8da8` (the surface check first failed on CI only: production CSS
+shortens `#6688ff` to `#68f`; the check now accepts both and passes against `vite preview`).
+**R2:** recaptured only the affected screens (13 flows; `E2E_ONLY`), kept the 74 captures that
+changed — Arabic email placeholder on sign-in/up/forgot, phone aurora on all auth screens, the
+Arabic preview caption (desktop onboarding), real Overview states (also behind the palette and
+menus), touch hints in the phone menu, 404 without Back — and updated the private gallery.
 
 ## P3 summary (latest verified working state)
 
@@ -75,7 +134,8 @@ review — 4 important + 4 nits → all fixed.
   the sandbox); the CLI local stack was used instead.
 - The sandbox's TLS proxy blocks npm downloads inside the edge-runtime container, so local runs
   here used host Deno (`pnpm dev:api`); CI uses the real edge runtime.
-- Bundle: one 820 kB JS chunk (243 kB gzip); route-level code splitting not done (perf is P16).
+- Bundle (corrected 2026-11-27): one 1,122.6 kB JS file (332.8 kB gzip) at the end of P3; route
+  splitting and budgets landed in the design pass (DESIGN_SYSTEM §15).
 - Arabic copy is a first draft for a native copywriter's review (DESIGN_SYSTEM §8).
 - Demo seed users still cannot sign in (random passwords, no identities) — local only.
 - Carried from P2: HNSW measurement (P5/P16), `consume_ai_reply` needs `ai_run_id` (P7),

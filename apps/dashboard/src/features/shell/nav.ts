@@ -49,7 +49,8 @@ export const NAV: NavGroup[] = [
   {
     key: 'operate',
     items: [
-      { key: 'overview', path: '', icon: LayoutDashboard, comingSoon: true },
+      // Overview has real data (Plan & usage, H6) — not announced as coming soon.
+      { key: 'overview', path: '', icon: LayoutDashboard, comingSoon: false },
       { key: 'inbox', path: 'inbox', icon: Inbox, comingSoon: true },
       { key: 'customers', path: 'customers', icon: Users, comingSoon: true },
       { key: 'orders', path: 'orders', icon: ShoppingBag, comingSoon: true },

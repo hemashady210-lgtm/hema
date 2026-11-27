@@ -38,6 +38,8 @@ describe('translations', () => {
       'language.en',
       'auth.brand.englishMessage',
       'auth.brand.englishReply',
+      // An email address example: Latin in every language (shown inside an LTR field).
+      'common.emailPlaceholder',
     ]);
     const get = (obj: unknown, path: string) =>
       path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], obj);

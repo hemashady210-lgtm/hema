@@ -25,6 +25,7 @@ export const en = {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     somethingWrong: 'Something went wrong',
+    emailPlaceholder: 'name@company.com',
   },
   validation: {
     required: 'This field is required.',
@@ -73,6 +74,13 @@ export const en = {
       englishMessage: 'Do you deliver to Al Olaya?',
       englishReply: 'Yes — delivery to Al Olaya takes about 35 minutes.',
       channels: 'WhatsApp · Instagram · Messenger · Website',
+      nodes: {
+        whatsapp: 'WhatsApp',
+        instagram: 'Instagram',
+        messenger: 'Messenger',
+        website: 'Website chat',
+      },
+      stageLabel: 'Every channel lands with one assistant',
       points: {
         bilingual: 'Arabic and English, with Gulf and Egyptian dialects',
         grounded: 'Answers only from your menu, hours and policies',
@@ -103,7 +111,7 @@ export const en = {
     },
     signUp: {
       title: 'Create your account',
-      subtitle: 'Start a 7-day free trial. No card required.',
+      subtitle: 'Start a free trial. No card required.',
       fullName: 'Full name',
       email: 'Work email',
       howItWorks: 'We’ll email you a link to confirm your address. Then you’ll choose a password.',
@@ -190,8 +198,18 @@ export const en = {
       defaultLocaleHelp: 'The assistant still replies in each customer’s own language.',
       submit: 'Create workspace',
       submitting: 'Creating…',
-      trialNote: 'Your 7-day trial starts now: 100 AI replies, website chat, 1 team member.',
+      // No limits in copy: plans and limits are data (DECISIONS H7); Overview shows the real ones.
+      trialNote:
+        'Your free trial starts when you create the workspace. Its limits and days left appear on Overview.',
       created: 'Workspace created.',
+      preview: {
+        label: 'Preview',
+        caption: 'Updates as you type.',
+        namePending: 'Your business',
+        localTime: 'Local time {{time}}',
+        customers: 'Customers: {{language}}',
+        trial: 'Free trial',
+      },
     },
     categories: {
       restaurant: 'Restaurant',
@@ -274,6 +292,37 @@ export const en = {
       admin: 'Platform tools for workspaces, subscriptions and connection requests.',
     },
   },
+  overview: {
+    usage: {
+      title: 'Plan & usage',
+      trial: 'Free trial',
+      plan: 'Plan',
+      daysLeft_one: 'day left',
+      daysLeft_other: 'days left',
+      endsOn: 'Ends {{date}}',
+      status: {
+        active: 'Active',
+        past_due: 'Payment failed',
+        grace: 'Grace period',
+        suspended: 'Suspended',
+      },
+      noPlan: 'No active plan',
+      noMembers: 'No members yet',
+      limitUnknown: 'Limit not available right now',
+      aiNone: 'No AI replies yet this period',
+      aiAllowance: 'Allowance: {{limit}} replies per period.',
+      aiAllowanceUnlimited: 'No limit on AI replies.',
+      loadError: 'Couldn’t load this right now.',
+      renewsOn: 'Renews {{date}}',
+      viewPlans: 'View plans',
+      seats: 'Team seats',
+      ofLimit: 'of {{limit}}',
+      unlimited: 'no limit',
+      seatsMembersOnly: 'Members of this workspace.',
+      aiReplies: 'AI replies this period',
+      aiHelp: 'Every reply your assistant sends counts once.',
+    },
+  },
   palette: {
     placeholder: 'Type a command or a page…',
     empty: 'No matches.',
@@ -282,6 +331,11 @@ export const en = {
     preferences: 'Preferences',
     switchLanguage: 'Switch to {{language}}',
     useTheme: 'Use {{theme}} appearance',
+    hints: {
+      move: 'Move',
+      open: 'Open',
+      close: 'Close',
+    },
   },
   settings: {
     title: 'Settings',
@@ -404,6 +458,7 @@ export const en = {
     invitedAs: 'You’re invited as {{role}}.',
     sentTo: 'Sent to {{email}}',
     expires: 'Expires {{date}}',
+    expiresLabel: 'Expires',
     signInToAccept: 'Sign in to accept',
     signUpToAccept: 'Create an account',
     accept: 'Accept and join',

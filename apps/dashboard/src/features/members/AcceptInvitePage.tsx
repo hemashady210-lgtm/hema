@@ -13,12 +13,13 @@ import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
 import { InlineAlert } from '@/components/inline-alert';
 import { Button } from '@/components/ui/button';
+import { GlowBorder } from '@/components/effects/glow';
 import { Badge, Skeleton } from '@/components/ui/misc';
 import { AuthHeading } from '@/features/auth/AuthLayout';
 import { membershipsKey } from '@/features/workspaces/queries';
 import { api, ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { formatDate } from '@/lib/format';
+import { formatDate, initials } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/use-document-title';
 
 /** /invite/:token — public. Shows who invited you, then sign in / sign up / accept. */
@@ -108,23 +109,40 @@ export function AcceptInvitePage() {
             : t('accept.invitedAs', { role })
         }
       />
-      <dl className="mb-8 flex flex-col gap-3 rounded-xl border bg-surface-1 p-4 text-callout">
-        <div className="flex items-center gap-3">
-          <dt className="sr-only">{t('invite.role')}</dt>
-          <dd>
-            <Badge tone="primary">{role}</Badge>
-          </dd>
+      {/* The invitation is the hero of this page: one card, the glow reserved for it (H2). */}
+      <GlowBorder className="mb-8 rounded-2xl">
+        <div className="surface-card rounded-2xl border p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              aria-hidden
+              className="grid size-11 shrink-0 place-items-center rounded-xl bg-[linear-gradient(145deg,#5a7bff,#2747d1)] text-headline font-semibold text-white shadow-glow"
+            >
+              {initials(p.workspace_name)}
+            </span>
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              <p
+                dir="auto"
+                className="w-full truncate text-headline font-semibold text-text-primary"
+              >
+                {p.workspace_name}
+              </p>
+              <Badge tone="primary">{role}</Badge>
+            </div>
+          </div>
+          <dl className="flex flex-col gap-2.5 border-t pt-4 text-callout">
+            <div className="flex items-center gap-3 text-text-secondary">
+              <Mail aria-hidden className="size-4 shrink-0 text-text-tertiary" />
+              <dt className="sr-only">{t('invite.email')}</dt>
+              <dd>{t('accept.sentTo', { email: '\u2066' + p.email + '\u2069' })}</dd>
+            </div>
+            <div className="flex items-center gap-3 text-text-secondary">
+              <CalendarClock aria-hidden className="size-4 shrink-0 text-text-tertiary" />
+              <dt className="sr-only">{t('accept.expiresLabel')}</dt>
+              <dd>{t('accept.expires', { date: formatDate(p.expires_at, locale) })}</dd>
+            </div>
+          </dl>
         </div>
-        <div className="flex items-center gap-3 text-text-secondary">
-          <Mail aria-hidden className="size-4 text-text-tertiary" />
-          <dt className="sr-only">{t('invite.email')}</dt>
-          <dd>{t('accept.sentTo', { email: '\u2066' + p.email + '\u2069' })}</dd>
-        </div>
-        <div className="flex items-center gap-3 text-text-secondary">
-          <CalendarClock aria-hidden className="size-4 text-text-tertiary" />
-          <dd>{t('accept.expires', { date: formatDate(p.expires_at, locale) })}</dd>
-        </div>
-      </dl>
+      </GlowBorder>
       {error ? (
         <InlineAlert tone="danger" className="mb-4">
           {error}

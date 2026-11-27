@@ -112,6 +112,7 @@ function PasswordForm({ next }: { next: string }) {
           autoComplete="email"
           inputMode="email"
           dir="ltr"
+          placeholder={t('common.emailPlaceholder')}
           {...form.register('email')}
         />
       </Field>
@@ -121,7 +122,7 @@ function PasswordForm({ next }: { next: string }) {
         labelAside={
           <Link
             to={withNext('/auth/forgot-password', next)}
-            className="text-footnote text-royal-300 hover:underline light:text-primary"
+            className="-my-1 inline-flex min-h-6 items-center text-footnote text-royal-300 hover:underline light:text-primary"
           >
             {t('auth.signIn.forgot')}
           </Link>
@@ -178,6 +179,7 @@ function MagicLinkForm({ next }: { next: string }) {
           autoComplete="email"
           inputMode="email"
           dir="ltr"
+          placeholder={t('common.emailPlaceholder')}
           {...form.register('email')}
         />
       </Field>

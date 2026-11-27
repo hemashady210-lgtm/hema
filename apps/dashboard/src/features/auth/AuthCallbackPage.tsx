@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { LoaderCircle } from 'lucide-react';
+import { LinkIcon, LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { safeRedirectPath } from '@ai-crm/shared';
 import { useAuth } from '@/app/auth';
 import { InlineAlert } from '@/components/inline-alert';
+import { Button } from '@/components/ui/button';
 import { useDocumentTitle } from '@/lib/use-document-title';
-import { AuthHeading } from './AuthLayout';
+import { AuthHeading, AuthStatusIcon } from './AuthLayout';
 
 /**
  * Landing page for email confirmation, magic links and OAuth. supabase-js exchanges the PKCE
@@ -36,14 +37,19 @@ export function AuthCallbackPage() {
   if (failed) {
     return (
       <>
-        <AuthHeading title={t('auth.callback.failedTitle')} />
-        <InlineAlert tone="danger">{t('auth.callback.failedBody')}</InlineAlert>
-        <Link
-          to="/auth/sign-in"
-          className="mt-6 inline-block text-callout text-royal-300 hover:underline light:text-primary"
-        >
-          {t('auth.callback.backToSignIn')}
-        </Link>
+        <AuthHeading
+          icon={
+            <AuthStatusIcon tone="warning">
+              <LinkIcon className="size-5" strokeWidth={1.75} />
+            </AuthStatusIcon>
+          }
+          title={t('auth.callback.failedTitle')}
+        />
+        {/* Not an error the person made: neutral tone, one clear way forward (HIG alerts). */}
+        <InlineAlert tone="warning">{t('auth.callback.failedBody')}</InlineAlert>
+        <Button asChild size="lg" className="mt-6 w-full">
+          <Link to="/auth/sign-in">{t('auth.callback.backToSignIn')}</Link>
+        </Button>
       </>
     );
   }

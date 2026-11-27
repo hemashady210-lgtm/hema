@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { usePermissions } from '@/features/permissions/use-permissions';
 import { useWorkspace } from '@/features/workspaces/context';
-import { LocaleSegmented } from '@/features/workspaces/CreateWorkspacePage';
+import { LocaleSegmented } from '@/components/locale-segmented';
 import { membershipsKey } from '@/features/workspaces/queries';
 import { errorMessage } from '@/lib/errors';
 import { countryOptions, timeZoneOptions } from '@/lib/format';

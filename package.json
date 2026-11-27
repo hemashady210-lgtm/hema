@@ -2,7 +2,7 @@
   "name": "ai-crm",
   "private": true,
   "version": "0.0.0",
-  "description": "Multi-tenant AI CRM SaaS (product name is a placeholder — see packages/shared/src/brand.ts)",
+  "description": "Pro Coders — multi-tenant AI CRM SaaS (name from packages/shared/src/brand.ts)",
   "packageManager": "pnpm@10.28.0",
   "engines": {
     "node": ">=22.12.0",

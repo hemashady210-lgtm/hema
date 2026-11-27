@@ -53,7 +53,7 @@ export function SettingsSection({
   return (
     <section
       className={cn(
-        'grid gap-6 rounded-xl border bg-surface-1 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]',
+        'surface-card grid gap-6 rounded-2xl border lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]',
         tone === 'danger' && 'border-danger/30',
       )}
     >
@@ -63,7 +63,9 @@ export function SettingsSection({
       </div>
       <div className="flex flex-col">
         <div className="p-6 pt-0 lg:pt-6">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t px-6 py-4">{footer}</div> : null}
+        {footer ? (
+          <div className="flex justify-end gap-2 border-t bg-surface-2/40 px-6 py-4">{footer}</div>
+        ) : null}
       </div>
     </section>
   );

@@ -60,13 +60,14 @@ function SidebarLink({
   const { t } = useTranslation();
   const { dir } = usePreferences();
   const label = t(`shell.nav.${item.key}`);
+  const soon = item.comingSoon ? t('comingSoon.badge') : null;
   const Icon = item.icon;
   const link = (
     <NavLink
       to={sectionHref(slug, item)}
       end={item.path === ''}
       onClick={onNavigate}
-      aria-label={collapsed ? label : undefined}
+      aria-label={collapsed ? (soon ? `${label} (${soon})` : label) : undefined}
       className={({ isActive }) =>
         cn(
           'group relative flex h-9 items-center gap-3 rounded-md px-3 text-callout font-medium text-text-secondary transition-colors duration-(--duration-micro)',
@@ -94,12 +95,19 @@ function SidebarLink({
             strokeWidth={1.75}
           />
           {collapsed ? null : <span className="truncate">{label}</span>}
-          {!collapsed && item.comingSoon ? (
-            <span
-              aria-hidden
-              className="ms-auto size-1.5 rounded-full bg-text-disabled"
-              title={t('comingSoon.badge')}
-            />
+          {/* "Coming soon" is announced with the link and shown in words on hover/focus — and
+              always on touch screens, which have no hover — never a bare dot (HIG
+              accessibility › "Convey information with more than color"). */}
+          {!collapsed && soon ? (
+            <>
+              <span className="sr-only"> ({soon})</span>
+              <span
+                aria-hidden
+                className="ms-auto rounded-full px-1.5 text-caption text-text-tertiary opacity-0 transition-opacity duration-(--duration-micro) group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+              >
+                {soon}
+              </span>
+            </>
           ) : null}
         </>
       )}

@@ -21,7 +21,7 @@ export function NotificationsBell({ workspaceId }: { workspaceId: string }) {
           variant="ghost"
           size="icon"
           aria-label={t('shell.notifications')}
-          className="relative"
+          className="relative max-md:size-11"
           data-testid="notifications"
         >
           <Bell aria-hidden />

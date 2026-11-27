@@ -24,24 +24,44 @@
     line-height: var(--text-body--line-height);
   }
 
-  /* Arabic: dedicated family, taller line-heights, never letter-spaced (DESIGN_SYSTEM §3). */
+  /* Arabic: dedicated family, never letter-spaced (DESIGN_SYSTEM §3). Arabic glyphs read
+     smaller than Latin at the same px, so sizes ≤ 15 px gain 1 px and titles 2 px (HIG
+     right-to-left › "Visually balance adjacent Latin and RTL scripts"); taller line-heights
+     leave room for diacritics. */
   html[lang='ar'] {
     font-family: var(--font-arabic);
     font-feature-settings: normal;
-    --text-display--line-height: 56px;
-    --text-large-title--line-height: 46px;
-    --text-title-1--line-height: 38px;
-    --text-title-2--line-height: 34px;
-    --text-title-3--line-height: 30px;
+    --text-display: 42px;
+    --text-display--line-height: 60px;
+    --text-large-title: 34px;
+    --text-large-title--line-height: 50px;
+    --text-title-1: 28px;
+    --text-title-1--line-height: 42px;
+    --text-title-2: 24px;
+    --text-title-2--line-height: 36px;
+    --text-title-3: 20px;
+    --text-title-3--line-height: 32px;
+    --text-headline: 16px;
     --text-headline--line-height: 26px;
-    --text-body--line-height: 26px;
-    --text-callout--line-height: 24px;
-    --text-subheadline--line-height: 22px;
-    --text-footnote--line-height: 20px;
-    --text-caption--line-height: 18px;
+    --text-body: 16px;
+    --text-body--line-height: 27px;
+    --text-callout: 15px;
+    --text-callout--line-height: 25px;
+    --text-subheadline: 14px;
+    --text-subheadline--line-height: 23px;
+    --text-footnote: 13px;
+    --text-footnote--line-height: 21px;
+    --text-caption: 12px;
+    --text-caption--line-height: 19px;
   }
   html[lang='ar'] * {
     letter-spacing: 0 !important;
+  }
+  /* The wordmark is a Latin LTR island in every locale (decision H1). */
+  html .wordmark {
+    font-family: 'Inter Variable', Inter, var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.022em !important;
   }
 
   *,
@@ -128,9 +148,61 @@
     }
   }
 
+  /* Content cards (content layer: opaque, never glass — HIG materials › Liquid Glass). */
+  .surface-card {
+    background-color: var(--surface-1);
+    background-image: var(--card-sheen);
+    box-shadow: var(--card-highlight), var(--elevation-1);
+  }
+
+  .text-brand-gradient {
+    background: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* Icons that must mirror in RTL (arrows, chevrons — DESIGN_SYSTEM §7). */
   .rtl-mirror:where([dir='rtl'] *) {
     transform: scaleX(-1);
+  }
+}
+
+/* Ambient light for auth / onboarding / empty states only (H2). Static: no animation. A real
+   Tailwind v4 utility (not a plain class in @layer), so variants such as `max-lg:bg-aurora`
+   generate CSS (review finding 5: the phone aurora on auth screens never rendered). */
+@utility bg-aurora {
+  background-image:
+    radial-gradient(60% 50% at 15% 0%, var(--aurora-1), transparent 70%),
+    radial-gradient(50% 45% at 100% 100%, var(--aurora-2), transparent 70%);
+  &:where([dir='rtl'] *, [dir='rtl']) {
+    background-image:
+      radial-gradient(60% 50% at 85% 0%, var(--aurora-1), transparent 70%),
+      radial-gradient(50% 45% at 0% 100%, var(--aurora-2), transparent 70%);
+  }
+}
+
+/* Increase Contrast / Reduce Transparency (review finding 4): decorative light and glows off.
+   Tokens handle shadow-glow / glow-* / aurora; these cover one-off decorative layers. */
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  .decor-light {
+    display: none !important;
+  }
+  .decor-glow {
+    box-shadow: none !important;
+  }
+}
+
+/* Windows High Contrast / forced colors: drop decorative fills, keep real borders. */
+@media (forced-colors: active) {
+  :root {
+    --aurora-1: transparent;
+    --aurora-2: transparent;
+  }
+  .surface-card {
+    background-image: none;
+    box-shadow: none;
+    border: 1px solid CanvasText;
   }
 }
 
@@ -166,4 +238,23 @@
     transform: none;
     animation: none;
   }
+}
+
+/* Arabic titles use the heavier cut so they hold their own next to Latin display type.
+   Unlayered on purpose: it must beat the `font-semibold` utility on headings. */
+html[lang='ar'] :is(h1, h2) {
+  font-weight: 700;
+}
+
+/* Navigation progress bar: travels in reading direction (mirrors in RTL). */
+@keyframes nav-progress {
+  from {
+    transform: translateX(calc(var(--nav-dir, 1) * -100%));
+  }
+  to {
+    transform: translateX(calc(var(--nav-dir, 1) * 300%));
+  }
+}
+[dir='rtl'] {
+  --nav-dir: -1;
 }

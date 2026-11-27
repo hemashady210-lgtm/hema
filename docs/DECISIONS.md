@@ -45,20 +45,20 @@ When a doc and this file disagree, this file wins.
 
 ## C. Approved answers to Phase 01 questions (owner, 2026-11-25)
 
-| #   | Topic               | Answer                                                                                                                                             |
-| --- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1  | Tenancy             | `workspace` (= tenant) → `branches` (optional, Enterprise only) → `bots`. No organization layer in v1, but don't block adding it later             |
-| C2  | Roles               | Workspace roles: Owner / Admin / Agent / Viewer. Super Admin is platform-level only, stored separately                                             |
-| C3  | Orders/reservations | AI creates them via structured tool calls into our own tables. External-sync adapter interface designed, not implemented                           |
-| C4  | Knowledge v1        | Structured business info (profile, hours, policies), manual Q&A, menu/product catalog with prices, file upload (PDF, DOCX, TXT). URL crawl = later |
-| C5  | Overage             | Usage tracked automatically, invoiced manually in v1                                                                                               |
-| C6  | Connection fee      | PayPal one-time + manual path; refundable on failure                                                                                               |
-| C7  | Trial end           | At 7 days or 100 replies: AI replies stop, configurable fallback message sent; dashboard read-only with upgrade prompt; data retained 30 days      |
-| C8  | Tax/invoices        | VAT and PDF invoices deferred; full billing-history records in v1                                                                                  |
-| C9  | Languages           | Reply in the customer's language. Primary: Arabic (MSA, Gulf, Egyptian) and English                                                                |
-| C10 | Retention           | Default 12 months, configurable per plan. Basic per-workspace export and delete in v1                                                              |
-| C11 | Brand               | Placeholder product name, configurable in one place (`packages/shared/src/brand.ts`) — kept as "AI CRM" for now (owner, 2026-11-26)                |
-| C12 | Workflow            | Commit to the feature branch and open a draft PR                                                                                                   |
+| #   | Topic               | Answer                                                                                                                                                     |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Tenancy             | `workspace` (= tenant) → `branches` (optional, Enterprise only) → `bots`. No organization layer in v1, but don't block adding it later                     |
+| C2  | Roles               | Workspace roles: Owner / Admin / Agent / Viewer. Super Admin is platform-level only, stored separately                                                     |
+| C3  | Orders/reservations | AI creates them via structured tool calls into our own tables. External-sync adapter interface designed, not implemented                                   |
+| C4  | Knowledge v1        | Structured business info (profile, hours, policies), manual Q&A, menu/product catalog with prices, file upload (PDF, DOCX, TXT). URL crawl = later         |
+| C5  | Overage             | Usage tracked automatically, invoiced manually in v1                                                                                                       |
+| C6  | Connection fee      | PayPal one-time + manual path; refundable on failure                                                                                                       |
+| C7  | Trial end           | At 7 days or 100 replies: AI replies stop, configurable fallback message sent; dashboard read-only with upgrade prompt; data retained 30 days              |
+| C8  | Tax/invoices        | VAT and PDF invoices deferred; full billing-history records in v1                                                                                          |
+| C9  | Languages           | Reply in the customer's language. Primary: Arabic (MSA, Gulf, Egyptian) and English                                                                        |
+| C10 | Retention           | Default 12 months, configurable per plan. Basic per-workspace export and delete in v1                                                                      |
+| C11 | Brand               | Placeholder product name, configurable in one place (`packages/shared/src/brand.ts`) — was "AI CRM"; **renamed "Pro Coders"** (owner, 2026-11-27 — see H1) |
+| C12 | Workflow            | Commit to the feature branch and open a draft PR                                                                                                           |
 
 ---
 
@@ -197,3 +197,20 @@ Approved with the P3 plan ("approved with all defaults 1–10").
 | G9  | Teammate emails             | `profiles.email` (synced from `auth.users`, read-only) is visible to teammates in the members list.                                                                                                                                                       | Done                                 |
 | G10 | Commit trailers             | CLAUDE.md wins: `Co-Authored-By: Claude <noreply@anthropic.com>` (no model identifier) + session link.                                                                                                                                                    | In effect                            |
 | G11 | Sign-up flow (security fix) | From the P3 security review (H1): sign-up asks for name + email + terms, sends an email link, and the password is chosen after confirmation; saving a password signs out other sessions. Any password set before confirmation is cleared by the database. | Done (migration 0016 + dashboard)    |
+
+## H. P3 design pass decisions (owner, 2026-11-27)
+
+Approved plan: HIG review of every P3 screen with the vendored `apple-design` skill, then a UI-only
+redesign (no auth logic, database or API changes). Details in `DESIGN_SYSTEM.md` §2.2a, §3, §13–§15.
+
+| #   | Topic            | Decision                                                                                                                                                                                                            | Status                                                                                                                               |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| H1  | Product name     | **Pro Coders**, in Latin letters in Arabic UI too (`productNameAr` = `productName`); logo mark + wordmark per DESIGN_SYSTEM §13. Internal identifiers (`@ai-crm/*`, Supabase `project_id`, storage keys) unchanged. | In effect                                                                                                                            |
+| H2  | Brand expression | One signature (channels → beams → assistant core + a bilingual exchange) on auth, onboarding and empty states; brand gradient/glow only on the logo, signature and plan cards.                                      | In effect                                                                                                                            |
+| H3  | Effects source   | 21st.dev's registry needs a signed-in account/API key, so effects are rebuilt with Motion + Tailwind in `components/effects/` (same visual vocabulary, our RTL/reduced-motion rules).                               | In effect                                                                                                                            |
+| H4  | 3D               | Real WebGL (react-three-fiber) on the **desktop auth brand panel only**, lazy and conditional; CSS 3D everywhere else.                                                                                              | In effect                                                                                                                            |
+| H5  | Bundle budgets   | Route-level code splitting + `bundle:check` budgets in CI (DESIGN_SYSTEM §15).                                                                                                                                      | In effect                                                                                                                            |
+| H6  | Overview         | A real-data "Plan & usage" row (trial days left, seats, AI replies) from `subscriptions`, entitlements and `usage_periods` via RLS; the rest of Overview stays "coming soon" until P10.                             | In effect                                                                                                                            |
+| H7  | Plan copy        | Trial length and limits shown in the UI come from `plans` / `plan_entitlements` (CLAUDE.md "plans and limits are data"), not from translation strings.                                                              | In effect                                                                                                                            |
+| H8  | Branch / PR      | Design pass on `ccr-da8be7ff-ulmui2-design`, its own draft PR stacked on PR #4.                                                                                                                                     | In effect                                                                                                                            |
+| H9  | `api` redeploy   | Redeploy `api` to the dev project so invitation emails carry the new name (no logic change).                                                                                                                        | **Blocked**: the Management API returns 401 (personal access token revoked, as recommended); redeploy when a new scoped token exists |

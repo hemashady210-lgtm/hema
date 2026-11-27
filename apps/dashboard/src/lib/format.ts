@@ -77,12 +77,49 @@ export function timeZoneOptions(): string[] {
   return [...gulf, ...zones.filter((z) => !gulf.includes(z))];
 }
 
-export function browserTimeZone(): string {
+/** Main time zone of each priority country (the picker's default when the device's zone is unknown). */
+const COUNTRY_ZONES: Record<string, string> = {
+  SA: 'Asia/Riyadh',
+  AE: 'Asia/Dubai',
+  KW: 'Asia/Kuwait',
+  QA: 'Asia/Qatar',
+  BH: 'Asia/Bahrain',
+  OM: 'Asia/Muscat',
+  EG: 'Africa/Cairo',
+  JO: 'Asia/Amman',
+};
+
+/** The device's IANA time zone, or null when the platform doesn't report one. */
+export function deviceTimeZone(): string | null {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
   } catch {
-    return 'Asia/Riyadh';
+    return null;
   }
+}
+
+/**
+ * The time zone picker's value (review finding 3): the device's zone always wins when it is a
+ * selectable zone (HIG entering data › "Get information from the system") — a country choice
+ * never overwrites it. Only when the device zone is unavailable does the country's main zone
+ * apply; with neither, the current value is kept (or the Gulf default on first render).
+ */
+export function pickTimeZone({
+  device,
+  zones,
+  country,
+  current,
+}: {
+  device: string | null;
+  zones: string[];
+  country?: string | null | undefined;
+  current?: string | undefined;
+}): string {
+  if (device && zones.includes(device)) return device;
+  const byCountry = country ? COUNTRY_ZONES[country] : undefined;
+  if (byCountry && zones.includes(byCountry)) return byCountry;
+  if (current && zones.includes(current)) return current;
+  return 'Asia/Riyadh';
 }
 
 export function initials(name: string | null | undefined, email?: string | null): string {

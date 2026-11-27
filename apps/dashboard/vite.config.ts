@@ -18,7 +18,8 @@ export default defineConfig({
   },
   // Only VITE_* variables are exposed to the browser. Never put secrets behind this prefix.
   envPrefix: 'VITE_',
-  build: { target: 'es2022', sourcemap: true },
+  // manifest: read by scripts/bundle-check.mjs (budgets, DESIGN_SYSTEM §15).
+  build: { target: 'es2022', sourcemap: true, manifest: true },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
   preview: { host: '127.0.0.1', port: 5173, strictPort: true },
   test: {

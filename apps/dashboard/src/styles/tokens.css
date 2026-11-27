@@ -81,6 +81,23 @@
   --elevation-3: 0 12px 32px rgb(0 0 0 / 0.45);
   --elevation-glow: 0 0 0 1px rgb(61 99 240 / 0.5), 0 8px 24px rgb(61 99 240 / 0.25);
 
+  /* Brand expression (H2) — used only by the logo, the signature and plan cards; never on
+     controls (HIG branding › "Apply your app's accent color judiciously"). */
+  --brand-gradient: linear-gradient(
+    135deg,
+    #5a7bff 0%,
+    var(--royal-500) 45%,
+    var(--electric-400) 100%
+  );
+  --glow-primary: 0 0 0 1px rgb(61 99 240 / 0.35), 0 12px 40px -12px rgb(61 99 240 / 0.6);
+  --glow-accent: 0 0 0 1px rgb(0 168 255 / 0.3), 0 12px 40px -12px rgb(0 168 255 / 0.5);
+  /* Ambient light behind auth / onboarding / empty states only (content stays opaque). */
+  --aurora-1: rgb(61 99 240 / 0.18);
+  --aurora-2: rgb(0 168 255 / 0.1);
+  /* Cards: a 1 px top highlight + faint top-lit fill = depth without heavier shadows. */
+  --card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --card-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.025), transparent 120px);
+
   /* Radius base for shadcn */
   --radius: 12px;
 }
@@ -114,6 +131,53 @@
   --elevation-1: 0 1px 2px rgb(15 28 77 / 0.08);
   --elevation-2: 0 4px 12px rgb(15 28 77 / 0.08);
   --elevation-3: 0 12px 32px rgb(15 28 77 / 0.12);
+  --glow-primary: 0 0 0 1px rgb(39 71 209 / 0.22), 0 12px 36px -14px rgb(39 71 209 / 0.4);
+  --glow-accent: 0 0 0 1px rgb(0 137 214 / 0.22), 0 12px 36px -14px rgb(0 137 214 / 0.35);
+  --aurora-1: rgb(61 99 240 / 0.1);
+  --aurora-2: rgb(0 168 255 / 0.08);
+  --card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --card-sheen: linear-gradient(to bottom, rgb(255 255 255 / 0.6), transparent 120px);
+}
+
+/* Increase Contrast or Reduce Transparency (HIG accessibility; review C1 + finding 4): no glows,
+   no ambient light, no top-lit sheen. Increase Contrast then swaps glows for solid rings below. */
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme='light'] {
+    --glow-primary: none;
+    --glow-accent: none;
+    --elevation-glow: none;
+    --aurora-1: transparent;
+    --aurora-2: transparent;
+    --card-sheen: none;
+  }
+}
+
+/* Increase Contrast (HIG accessibility; review C1): stronger hairlines and secondary text,
+   opaque materials, solid 2 px rings where glows were. */
+@media (prefers-contrast: more) {
+  :root {
+    --border: rgb(148 170 255 / 0.3);
+    --border-strong: rgb(148 170 255 / 0.48);
+    --text-secondary: #c9d1e3;
+    --text-tertiary: #aab3c8;
+    --material-thin: var(--surface-1);
+    --material-regular: var(--elevated);
+    --material-thick: var(--elevated);
+    --material-chrome: var(--background);
+    --glow-primary: 0 0 0 2px var(--royal-400);
+    --glow-accent: 0 0 0 2px var(--electric-400);
+    --elevation-glow: 0 0 0 2px var(--royal-400);
+  }
+  [data-theme='light'] {
+    --border: rgb(15 28 77 / 0.32);
+    --border-strong: rgb(15 28 77 / 0.5);
+    --text-secondary: #2c3450;
+    --text-tertiary: #3d4662;
+    --glow-primary: 0 0 0 2px var(--royal-700);
+    --glow-accent: 0 0 0 2px var(--electric-700);
+    --elevation-glow: 0 0 0 2px var(--royal-700);
+  }
 }
 
 @theme inline {
@@ -160,6 +224,8 @@
   --color-royal-800: var(--royal-800);
   --color-royal-900: var(--royal-900);
   --color-royal-950: var(--royal-950);
+  --color-electric-300: var(--electric-300);
+  --color-electric-400: var(--electric-400);
   --color-electric-500: var(--electric-500);
   --color-electric-600: var(--electric-600);
 }
@@ -173,29 +239,41 @@
     sans-serif;
   --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Type scale (LTR line-heights; Arabic overrides in globals.css) */
+  /* Type scale (LTR line-heights; Arabic sizes/line-heights in globals.css). Letter-spacing
+     follows Inter's dynamic metrics (tighter as size grows, like Apple's tracking table). */
   --text-display: 40px;
   --text-display--line-height: 48px;
+  --text-display--letter-spacing: -0.022em;
   --text-large-title: 32px;
   --text-large-title--line-height: 40px;
+  --text-large-title--letter-spacing: -0.022em;
   --text-title-1: 26px;
   --text-title-1--line-height: 32px;
+  --text-title-1--letter-spacing: -0.02em;
   --text-title-2: 22px;
   --text-title-2--line-height: 28px;
+  --text-title-2--letter-spacing: -0.018em;
   --text-title-3: 18px;
   --text-title-3--line-height: 24px;
+  --text-title-3--letter-spacing: -0.014em;
   --text-headline: 15px;
   --text-headline--line-height: 20px;
+  --text-headline--letter-spacing: -0.009em;
   --text-body: 15px;
   --text-body--line-height: 22px;
+  --text-body--letter-spacing: -0.009em;
   --text-callout: 14px;
   --text-callout--line-height: 20px;
+  --text-callout--letter-spacing: -0.006em;
   --text-subheadline: 13px;
   --text-subheadline--line-height: 18px;
+  --text-subheadline--letter-spacing: -0.003em;
   --text-footnote: 12px;
   --text-footnote--line-height: 16px;
+  --text-footnote--letter-spacing: 0em;
   --text-caption: 11px;
   --text-caption--line-height: 14px;
+  --text-caption--letter-spacing: 0.005em;
 
   --radius-xs: 6px;
   --radius-sm: 8px;

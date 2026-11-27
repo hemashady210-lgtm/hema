@@ -26,6 +26,8 @@ export const ar: Translation = {
     showPassword: 'إظهار كلمة المرور',
     hidePassword: 'إخفاء كلمة المرور',
     somethingWrong: 'حدث خطأ ما',
+    // An email address is an LTR island; a bare example reads correctly in both directions.
+    emailPlaceholder: 'name@company.com',
   },
   validation: {
     required: 'هذا الحقل مطلوب.',
@@ -74,6 +76,13 @@ export const ar: Translation = {
       englishMessage: 'Do you deliver to Al Olaya?',
       englishReply: 'Yes — delivery to Al Olaya takes about 35 minutes.',
       channels: 'واتساب · إنستغرام · ماسنجر · الموقع',
+      nodes: {
+        whatsapp: 'واتساب',
+        instagram: 'إنستغرام',
+        messenger: 'ماسنجر',
+        website: 'دردشة الموقع',
+      },
+      stageLabel: 'كل القنوات تصل إلى مساعد واحد',
       points: {
         bilingual: 'العربية والإنجليزية، مع اللهجتين الخليجية والمصرية',
         grounded: 'يجيب فقط من قائمتك وأوقات عملك وسياساتك',
@@ -104,7 +113,7 @@ export const ar: Translation = {
     },
     signUp: {
       title: 'أنشئ حسابك',
-      subtitle: 'ابدأ تجربة مجانية لمدة 7 أيام. دون بطاقة دفع.',
+      subtitle: 'ابدأ تجربة مجانية. دون بطاقة دفع.',
       fullName: 'الاسم الكامل',
       email: 'بريد العمل',
       howItWorks: 'سنرسل إليك رابطًا لتأكيد بريدك، ثم تختار كلمة المرور.',
@@ -191,8 +200,17 @@ export const ar: Translation = {
       defaultLocaleHelp: 'يظل المساعد يردّ على كل عميل بلغته.',
       submit: 'إنشاء مساحة العمل',
       submitting: 'جارٍ الإنشاء…',
-      trialNote: 'تبدأ تجربتك لمدة 7 أيام الآن: 100 رد ذكي، ودردشة الموقع، وعضو واحد في الفريق.',
+      trialNote:
+        'تبدأ تجربتك المجانية عند إنشاء مساحة العمل، وتظهر حدودها والأيام المتبقية في صفحة النظرة العامة.',
       created: 'تم إنشاء مساحة العمل.',
+      preview: {
+        label: 'معاينة',
+        caption: 'تُحدَّث أثناء الكتابة.',
+        namePending: 'نشاطك التجاري',
+        localTime: 'الوقت المحلي {{time}}',
+        customers: 'العملاء: {{language}}',
+        trial: 'تجربة مجانية',
+      },
     },
     categories: {
       restaurant: 'مطعم',
@@ -272,6 +290,37 @@ export const ar: Translation = {
       admin: 'أدوات المنصة لمساحات العمل والاشتراكات وطلبات الربط.',
     },
   },
+  overview: {
+    usage: {
+      title: 'الخطة والاستخدام',
+      trial: 'التجربة المجانية',
+      plan: 'الخطة',
+      daysLeft_one: 'الأيام المتبقية',
+      daysLeft_other: 'الأيام المتبقية',
+      endsOn: 'تنتهي في {{date}}',
+      status: {
+        active: 'نشطة',
+        past_due: 'فشل الدفع',
+        grace: 'فترة سماح',
+        suspended: 'معلّقة',
+      },
+      noPlan: 'لا توجد خطة نشطة',
+      noMembers: 'لا يوجد أعضاء بعد',
+      limitUnknown: 'الحد غير متاح حاليًا',
+      aiNone: 'لا توجد ردود ذكية بعد في هذه الفترة',
+      aiAllowance: 'الحصة: {{limit}} ردًّا لكل فترة.',
+      aiAllowanceUnlimited: 'لا حدّ للردود الذكية.',
+      loadError: 'تعذّر تحميل هذه البيانات الآن.',
+      renewsOn: 'تتجدد في {{date}}',
+      viewPlans: 'عرض الخطط',
+      seats: 'مقاعد الفريق',
+      ofLimit: 'من {{limit}}',
+      unlimited: 'دون حد',
+      seatsMembersOnly: 'أعضاء مساحة العمل هذه.',
+      aiReplies: 'الردود الذكية في هذه الفترة',
+      aiHelp: 'يُحتسب كل ردّ يرسله مساعدك مرة واحدة.',
+    },
+  },
   palette: {
     placeholder: 'اكتب أمرًا أو اسم صفحة…',
     empty: 'لا توجد نتائج.',
@@ -280,6 +329,11 @@ export const ar: Translation = {
     preferences: 'التفضيلات',
     switchLanguage: 'التبديل إلى {{language}}',
     useTheme: 'استخدم المظهر {{theme}}',
+    hints: {
+      move: 'تنقّل',
+      open: 'افتح',
+      close: 'أغلق',
+    },
   },
   settings: {
     title: 'الإعدادات',
@@ -400,6 +454,7 @@ export const ar: Translation = {
     invitedAs: 'أنت مدعو بدور {{role}}.',
     sentTo: 'أُرسلت إلى {{email}}',
     expires: 'تنتهي في {{date}}',
+    expiresLabel: 'تاريخ الانتهاء',
     signInToAccept: 'سجّل الدخول للقبول',
     signUpToAccept: 'أنشئ حسابًا',
     accept: 'قبول والانضمام',

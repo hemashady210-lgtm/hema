@@ -14,9 +14,15 @@ export function createSupabaseMock() {
   const listeners = new Set<Listener>();
   const calls: QueryCall[] = [];
   const tableData: Record<string, unknown> = {};
+  /** Per-table / per-RPC errors, to test failure states (cleared by `reset()`). */
+  const tableErrors: Record<string, unknown> = {};
+  const rpcErrors: Record<string, unknown> = {};
 
   function builder(table: string) {
-    const result = () => ({ data: tableData[table] ?? null, error: null });
+    const result = () =>
+      tableErrors[table]
+        ? { data: null, error: tableErrors[table] }
+        : { data: tableData[table] ?? null, error: null };
     const chain: Record<string, unknown> = {};
     for (const op of [
       'select',
@@ -30,6 +36,9 @@ export function createSupabaseMock() {
       'limit',
       'neq',
       'gt',
+      'gte',
+      'lt',
+      'lte',
     ]) {
       chain[op] = (...args: unknown[]) => {
         calls.push({ table, op, args });
@@ -76,11 +85,24 @@ export function createSupabaseMock() {
     client: {
       auth,
       from: vi.fn((t: string) => builder(t)),
-      rpc: vi.fn((fn: string) => Promise.resolve({ data: rpcData[fn] ?? null, error: null })),
+      rpc: vi.fn((fn: string) =>
+        Promise.resolve(
+          rpcErrors[fn]
+            ? { data: null, error: rpcErrors[fn] }
+            : { data: rpcData[fn] ?? null, error: null },
+        ),
+      ),
     },
     rpcData,
     calls,
     tableData,
+    tableErrors,
+    rpcErrors,
+    /** Forget simulated errors (data stays; tests set what they need). */
+    resetErrors() {
+      for (const k of Object.keys(tableErrors)) delete tableErrors[k];
+      for (const k of Object.keys(rpcErrors)) delete rpcErrors[k];
+    },
     setSession(next: unknown) {
       session = next;
       listeners.forEach((l) => l(next ? 'SIGNED_IN' : 'SIGNED_OUT', next));
