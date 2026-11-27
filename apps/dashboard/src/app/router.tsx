@@ -51,6 +51,13 @@ const notFound = page(
   () => import('@/features/system/NotFoundPage'),
   (m) => m.NotFoundPage,
 );
+const notFoundInShell = page(
+  () => import('@/features/system/NotFoundPage'),
+  (m) =>
+    function NotFoundInShell() {
+      return <m.NotFoundPage inShell />;
+    },
+);
 
 export const authRoutes: RouteObject = {
   path: '/auth',
@@ -161,7 +168,7 @@ export const routes: RouteObject[] = [
                   (m) => m.AccountPage,
                 ),
               },
-              { path: '*', lazy: notFound },
+              { path: '*', lazy: notFoundInShell },
             ],
           },
           { path: '/admin', element: <AdminPlaceholder /> },

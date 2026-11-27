@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
 import { EmptyState } from '@/components/empty-state';
+import { UsageMeter } from '@/components/usage-meter';
 import { InlineAlert } from '@/components/inline-alert';
 import { ConfirmDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -24,9 +25,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, Badge, Skeleton } from '@/components/ui/misc';
 import { usePermissions } from '@/features/permissions/use-permissions';
-import { SettingsSection } from '@/features/settings/SettingsLayout';
+import { useSeatUsage } from '@/features/billing/usage';
 import { useWorkspace } from '@/features/workspaces/context';
-import { membershipsKey, useEntitlements, type Membership } from '@/features/workspaces/queries';
+import { membershipsKey, type Membership } from '@/features/workspaces/queries';
 import { errorMessage } from '@/lib/errors';
 import { formatDate, initials } from '@/lib/format';
 import { useDocumentTitle } from '@/lib/use-document-title';
@@ -56,15 +57,9 @@ export function MembersPage() {
   const canSeeInvites = perms.can('members.invite');
   const members = useMembers(workspace.id);
   const invitations = useInvitations(workspace.id, canSeeInvites);
-  const { data: entitlements } = useEntitlements(workspace.id);
   const [inviteOpen, setInviteOpen] = useState(false);
-
-  const limit = typeof entitlements?.max_users === 'number' ? entitlements.max_users : null;
-  const now = Date.now();
-  const openInvites = (invitations.data ?? []).filter(
-    (i) => new Date(i.expires_at).getTime() > now,
-  ).length;
-  const used = (members.data?.length ?? 0) + openInvites;
+  // Same seat rule as Overview (members + open invitations, G4) from one shared hook.
+  const { used, limit } = useSeatUsage(workspace.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -73,12 +68,22 @@ export function MembersPage() {
           <h2 className="text-title-3 font-semibold">{t('members.title')}</h2>
           <p className="text-callout text-text-secondary">{t('members.subtitle')}</p>
           {members.data ? (
-            <p className="tabular text-footnote text-text-tertiary" data-testid="seats">
-              {limit === null
-                ? t('members.seatsUnlimited', { used })
-                : t('members.seats', { used, limit })}
-              {canSeeInvites && limit !== null ? ` · ${t('members.seatsHelp')}` : ''}
-            </p>
+            <div className="mt-2 flex max-w-sm flex-col gap-2">
+              <p className="tabular text-footnote text-text-tertiary" data-testid="seats">
+                {limit === null
+                  ? t('members.seatsUnlimited', { used })
+                  : t('members.seats', { used, limit })}
+                {canSeeInvites && limit !== null ? ` · ${t('members.seatsHelp')}` : ''}
+              </p>
+              {limit !== null ? (
+                <UsageMeter
+                  value={used}
+                  max={limit}
+                  label={t('overview.usage.seats')}
+                  valueText={t('members.seats', { used, limit })}
+                />
+              ) : null}
+            </div>
           ) : null}
         </div>
         {canInvite ? (
@@ -93,7 +98,7 @@ export function MembersPage() {
         <InlineAlert tone="info">{t('members.manageNotice')}</InlineAlert>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl border bg-surface-1">
+      <div className="surface-card overflow-hidden rounded-2xl border">
         <table className="w-full text-start text-callout">
           <caption className="sr-only">{t('members.title')}</caption>
           <thead className="border-b bg-surface-2/60 text-footnote text-text-tertiary">
@@ -147,19 +152,31 @@ export function MembersPage() {
       </div>
 
       {canSeeInvites ? (
-        <SettingsSection title={t('members.pending.title')}>
-          {invitations.isPending ? (
-            <Skeleton className="h-10 w-full" />
-          ) : invitations.data && invitations.data.length > 0 ? (
-            <ul className="-my-3 divide-y" data-testid="pending-invitations">
-              {invitations.data.map((inv) => (
-                <PendingInvitation key={inv.id} invitation={inv} />
-              ))}
-            </ul>
-          ) : (
-            <EmptyState icon={Users} title={t('members.pending.empty')} />
-          )}
-        </SettingsSection>
+        // Same card language as the members table above (review: one layout per list).
+        <section
+          aria-labelledby="pending-title"
+          className="surface-card overflow-hidden rounded-2xl border"
+        >
+          <h3
+            id="pending-title"
+            className="border-b bg-surface-2/60 px-4 py-3 text-footnote font-medium text-text-tertiary sm:px-5"
+          >
+            {t('members.pending.title')}
+          </h3>
+          <div className="px-4 sm:px-5">
+            {invitations.isPending ? (
+              <Skeleton className="my-4 h-10 w-full" />
+            ) : invitations.data && invitations.data.length > 0 ? (
+              <ul className="divide-y" data-testid="pending-invitations">
+                {invitations.data.map((inv) => (
+                  <PendingInvitation key={inv.id} invitation={inv} />
+                ))}
+              </ul>
+            ) : (
+              <EmptyState icon={Users} title={t('members.pending.empty')} className="py-5" />
+            )}
+          </div>
+        </section>
       ) : null}
 
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
