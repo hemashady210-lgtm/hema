@@ -53,6 +53,15 @@ Total **602** (+ a two-session concurrency check of the limit locks, run manuall
 CI: job `checks` (lint incl. `local/logical-css`, format, typecheck, Vitest), job `functions`
 (deno lint/check/test), job `db` (pgTAP), job `e2e` (local stack + integration + Playwright).
 
+**CI infrastructure resilience.** Supabase's local ports (54320–54329) lie inside Linux's
+ephemeral port range, so on a hosted runner an outbound connection made while images are being
+pulled can take one of them and `supabase start` fails with "address already in use". The `db`
+and `e2e` jobs therefore reserve that block first (`net.ipv4.ip_local_reserved_ports`). Setup
+steps (stack start, Chromium install) run through `scripts/ci/retry-infra.sh`, which retries
+**once** and only for infrastructure errors (port taken, image pull/registry, network timeouts),
+after cleaning up; any other failure, and every test step, fails immediately. Its behaviour is
+tested in the `checks` job (`scripts/ci/retry-infra.test.sh`).
+
 ## 3. Mandatory test rules
 
 1. **Every new table** ships with RLS tests: add it to the role matrix (`04_role_matrix`, which

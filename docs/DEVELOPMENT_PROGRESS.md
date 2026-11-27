@@ -65,6 +65,15 @@ changed — Arabic email placeholder on sign-in/up/forgot, phone aurora on all a
 Arabic preview caption (desktop onboarding), real Overview states (also behind the palette and
 menus), touch hints in the phone menu, 404 without Back — and updated the private gallery.
 
+### CI resilience (2026-11-27, PR #6)
+
+Two CI failures were infrastructure, not code: `e2e` (run 22, port 54324) and `db` (run 34, port 54322) could not bind a Supabase port — "address already in use" right after the image pulls.
+Each job runs on its own VM, so they were not colliding with each other: the ports sit in the
+kernel's ephemeral range and were taken by the runner's own outbound connections. Fix: the `db`
+and `e2e` jobs reserve 54320–54329 before anything starts, and setup steps get one automatic
+retry for infrastructure-only errors (`scripts/ci/retry-infra.sh`, tested in `checks`); test steps
+are never retried. See TESTING §2a. Owner-approved merge order: #3 → #4 → #5 → #6.
+
 ## P3 summary (latest verified working state)
 
 - **Supabase dev project `ai-crm-dev`**: **18 migrations** applied (0015 P3, 0016 P3 review fixes);
