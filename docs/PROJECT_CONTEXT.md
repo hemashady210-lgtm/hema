@@ -2,7 +2,7 @@
 
 ## What we're building
 
-A multi-tenant **AI CRM SaaS** for small and mid-size businesses in Arabic-speaking markets
+**Pro Coders**, a multi-tenant **AI CRM SaaS** for small and mid-size businesses in Arabic-speaking markets
 (and English). Each business (a _workspace_) gets AI bots that answer customers on a **website
 widget, WhatsApp, Messenger and Instagram** — in the customer's language and dialect — using the
 business's own knowledge (profile, hours, policies, Q&A, menu/catalog, documents). Bots can take

@@ -1,11 +1,12 @@
-# AI CRM (working title)
+# Pro Coders
 
-Multi-tenant AI CRM SaaS: bilingual (Arabic/English) AI bots for website chat, WhatsApp,
+**Pro Coders** is a multi-tenant AI CRM SaaS: bilingual (Arabic/English) AI bots for website chat, WhatsApp,
 Messenger and Instagram, with a shared inbox, orders/reservations, human handoff and
 usage-based plans.
 
-**Status:** Phase 01 (Architecture & Foundation): design docs, database migrations and repo
-scaffold, awaiting owner approval. No product features are implemented yet.
+**Status:** see [`docs/DEVELOPMENT_PROGRESS.md`](docs/DEVELOPMENT_PROGRESS.md) (P3 auth,
+workspaces and app shell, plus the P3 design pass). The product name lives in
+`packages/shared/src/brand.ts`; brand assets in [`docs/brand/`](docs/brand).
 
 - Project overview: [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md)
 - Decisions (source of truth): [`docs/DECISIONS.md`](docs/DECISIONS.md)

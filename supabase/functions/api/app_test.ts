@@ -108,7 +108,7 @@ Deno.test('health proves packages/shared is bundled (R-14) and needs no auth', a
   const { handle } = app();
   const res = await handle(new Request('http://x/api/health'));
   assertEquals(res.status, 200);
-  assertEquals((await res.json()).product, 'AI CRM');
+  assertEquals((await res.json()).product, 'Pro Coders');
   assertMatch(res.headers.get('x-request-id') ?? '', /^req_/);
 });
 

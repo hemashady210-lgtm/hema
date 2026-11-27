@@ -3,8 +3,10 @@
 **Foundation:** Apple Human Interface Guidelines principles (clarity, deference, depth; type
 scale; materials; 4-pt spacing; spring-like motion), applied to a **dark-first**, premium SaaS
 product with a Stripe/Linear level of restraint (A3). Bilingual Arabic/English with full RTL
-(A4). The owner's own Apple design-system skill was not available in this environment, so
-this document was written from HIG principles directly (owner answer #2).
+(A4). Product: **Pro Coders** (H1). Since the P3 design pass, reviews use the vendored
+`apple-design` skill (`.claude/skills/apple-design`, Apple's HIG pages + review lenses) — HIG
+principles adapted to a **web** dashboard: navigation and controls stay familiar web patterns;
+identity lives in color, type, the mark and one signature moment (§13–§15).
 
 Tokens are implemented in [`apps/dashboard/src/styles/tokens.css`](../apps/dashboard/src/styles/tokens.css)
 (Tailwind v4 `@theme`, shadcn-compatible variable names). The widget consumes a subset.
@@ -71,6 +73,21 @@ fixed by darkening/lightening the smallest step: dark `text-tertiary` `#7A85A0 �
 (4.21:1 on `elevated`), light `text-tertiary` `#6B7590 → #5F6984`, light `success`
 `#138A4B → #0E7540`, light `warning` `#B26B00 → #8F5600` (all were < 4.5:1 on `surface-3`).
 
+### 2.2a Brand expression, depth and Increase Contrast (P3 design pass)
+
+| Token                          | Dark                                              | Light             | Use (and only this)                                    |
+| ------------------------------ | ------------------------------------------------- | ----------------- | ------------------------------------------------------ |
+| `brand-gradient`               | `135° #5A7BFF → #3D63F0 → #2EBBFF`                | same              | logo, the signature scene, plan-card borders           |
+| `glow-primary` / `glow-accent` | 1 px ring + soft 40 px bloom (Royal / Electric)   | lighter bloom     | glow borders on plan/KPI/preview cards, focus-adjacent |
+| `aurora-1` / `aurora-2`        | Royal 18 % / Electric 10 % radial light           | 10 % / 8 %        | `.bg-aurora` behind auth, onboarding, empty states     |
+| `card-highlight`, `card-sheen` | 1 px top inset (white 5 %) + top-lit fill (2.5 %) | white 90 % / 60 % | `.surface-card` — every content card                   |
+
+Brand color stays off controls except primary actions and status (HIG branding › "Apply your
+app's accent color judiciously"). **Increase Contrast** (`prefers-contrast: more`): borders
+0.10 → 0.30 alpha, `text-secondary` `#A6B0C6 → #C9D1E3`, `text-tertiary` → `#AAB3C8` (light:
+`#2C3450` / `#3D4662`), materials opaque, glows become 2 px solid rings, aurora and sheen off.
+`forced-colors: active` drops decorative fills and keeps real borders.
+
 ### 2.3 Data visualization
 
 Categorical (dark): `#3D63F0`, `#00A8FF`, `#8B7BFF`, `#2FD27F`, `#F5B544`, `#FF7AA8`.
@@ -89,28 +106,36 @@ Arabic readers expect right-to-left time (decision deferred to P16 user testing;
 | Mono   | `"SF Mono"`                                                 | `"JetBrains Mono"`, `ui-monospace`                                        |
 
 SF fonts are used only when installed on the device (system fonts); they are not bundled
-(license). Fonts are self-hosted, subset, `font-display: swap`. Numbers use `tabular-nums`
+(license). Fonts are self-hosted, subset, `font-display: swap`. **Inter ships with its optical-size
+axis** (`@fontsource-variable/inter/opsz.css`, +25 kB Latin): titles get the Display cut
+automatically, like SF's dynamic optical sizes (HIG typography). IBM Plex Sans Arabic ships
+400/500/600/700; Arabic `h1`/`h2` use 700. The wordmark is always Inter (Latin LTR island). Numbers use `tabular-nums`
 in tables, usage meters and prices.
 
 ### 3.2 Scale (dashboard, desktop-first)
 
-| Token         | Size / line (LTR) | Line height AR | Weight | Tracking (Latin only) |
-| ------------- | ----------------- | -------------- | ------ | --------------------- |
-| `display`     | 40 / 48           | 56             | 600    | −0.02em               |
-| `large-title` | 32 / 40           | 46             | 600    | −0.015em              |
-| `title-1`     | 26 / 32           | 38             | 600    | −0.01em               |
-| `title-2`     | 22 / 28           | 34             | 600    | −0.005em              |
-| `title-3`     | 18 / 24           | 30             | 600    | 0                     |
-| `headline`    | 15 / 20           | 26             | 600    | 0                     |
-| `body`        | 15 / 22           | 26             | 400    | 0                     |
-| `callout`     | 14 / 20           | 24             | 400    | 0                     |
-| `subheadline` | 13 / 18           | 22             | 400    | 0                     |
-| `footnote`    | 12 / 16           | 20             | 400    | 0.005em               |
-| `caption`     | 11 / 14           | 18             | 500    | 0.01em                |
+| Token         | Size / line (LTR) | Size / line AR | Weight       | Tracking (Latin; Inter dynamic metrics) |
+| ------------- | ----------------- | -------------- | ------------ | --------------------------------------- |
+| `display`     | 40 / 48           | 42 / 60        | 600 (AR 700) | −0.022em                                |
+| `large-title` | 32 / 40           | 34 / 50        | 600 (AR 700) | −0.022em                                |
+| `title-1`     | 26 / 32           | 28 / 42        | 600 (AR 700) | −0.020em                                |
+| `title-2`     | 22 / 28           | 24 / 36        | 600          | −0.018em                                |
+| `title-3`     | 18 / 24           | 20 / 32        | 600          | −0.014em                                |
+| `headline`    | 15 / 20           | 16 / 26        | 600          | −0.009em                                |
+| `body`        | 15 / 22           | 16 / 27        | 400          | −0.009em                                |
+| `callout`     | 14 / 20           | 15 / 25        | 400          | −0.006em                                |
+| `subheadline` | 13 / 18           | 14 / 23        | 400          | −0.003em                                |
+| `footnote`    | 12 / 16           | 13 / 21        | 400          | 0                                       |
+| `caption`     | 11 / 14           | 12 / 19        | 500          | +0.005em                                |
 
-Rules: Arabic gets ~15–20 % taller line-height (diacritics, ascenders), **no letter-spacing,
+Tracking = `−0.0223 + 0.185·e^(−0.1745·px)` em (Inter's dynamic metrics; same idea as Apple's
+tracking table: tighter as size grows). **Arabic sizes are 1 px larger up to 15 px and 2 px
+larger for titles** (review finding: Arabic glyphs read smaller than Latin at the same px; HIG
+right-to-left › "Visually balance adjacent Latin and RTL scripts").
+
+Rules: Arabic gets ~60–70 % line-height (diacritics, ascenders), **no letter-spacing,
 no uppercase transforms, no italics** (use weight or color for emphasis). Minimum Arabic size
-13 px. Mobile scale: body 16/24 (prevents iOS zoom on inputs).
+12 px (caption), 13 px for running text. Counters, meters and prices use `tabular-nums`. Mobile scale: body 16/24 (prevents iOS zoom on inputs).
 
 ## 4. Spacing, layout, radii
 
@@ -121,7 +146,11 @@ no uppercase transforms, no italics** (use weight or color for emphasis). Minimu
   `xl` (list · thread · customer panel), 2-pane at `lg`, stacked below.
 - **Radii (continuous-corner feel):** `xs 6`, `sm 8`, `md 12` (inputs, buttons), `lg 16`
   (cards), `xl 20` (dialogs, sheets), `2xl 28` (marketing/hero), `full` (pills, avatars).
-- **Hit targets:** ≥ 36 px desktop, ≥ 44 px touch.
+- **Hit targets:** ≥ 36 px desktop, ≥ 44 px touch (top bar and sheet controls are 44 px below
+  `md`; standalone text links ≥ 24 px tall).
+- **Page rhythm (P3 design pass):** page gutters 16 (mobile) / 24 (tablet) / 40 px (desktop);
+  settings sections 32 px apart; auth form column 400 px anchored at a fixed top offset so
+  headings never jump between steps.
 
 ## 5. Materials & elevation (HIG-inspired)
 
@@ -136,6 +165,10 @@ no uppercase transforms, no italics** (use weight or color for emphasis). Minimu
 All materials: `backdrop-filter: blur() saturate(160%)`, 1 px `border` token, and a top inner
 highlight `inset 0 1px 0 rgb(255 255 255 / 0.04)`. `@supports not (backdrop-filter)` → solid
 `elevated`. Respect `prefers-reduced-transparency` (solid fills).
+
+**Layers (HIG materials, `liquid-glass.md`):** translucent materials belong only to the
+functional layer — top bar, sidebar on mobile, menus, popovers, dialogs, command palette.
+Content cards are opaque `.surface-card` (sheen + 1 px highlight), never glass.
 
 Elevation (shadows, dark): `e1 0 1px 2px rgb(0 0 0 / .4)`, `e2 0 4px 12px rgb(0 0 0 / .35)`,
 `e3 0 12px 32px rgb(0 0 0 / .45)`, `glow 0 0 0 1px rgb(61 99 240 / .5), 0 8px 24px rgb(61 99 240 / .25)`
@@ -231,3 +264,61 @@ Tokens exposed to customers: accent color (validated for 4.5:1 against its text 
 widget auto-picks white/black text), mode (auto/dark/light), radius (`md`/`lg`/`xl`), launcher
 icon, position (`start`/`end`), greeting and launcher label (ar/en). Everything else is fixed
 for quality. "Powered by" footer unless `widget_remove_branding`.
+
+## 13. Brand — Pro Coders (decision H1)
+
+- **Mark:** a speech bubble holding a code prompt (`›_`) on a rounded tile lit Royal → Electric
+  (`#5A7BFF → #3D63F0 → #1E3AA8` + an Electric `#2EBBFF` corner light): conversations, built by
+  coders. One-colour version (`currentColor`, prompt knocked out) for single-ink use.
+- **Wordmark:** "Pro Coders", Inter Display 620, −0.022em. Latin in every locale (logos are not
+  translated); the lockup (mark + wordmark) is an **LTR island** and never mirrors in RTL.
+- **Files:** `docs/brand/pro-coders-mark.svg`, `-mark-mono.svg`, `-wordmark.svg` (outlined),
+  `-lockup-on-dark.svg`, `-lockup-on-light.svg`; favicon `apps/dashboard/public/favicon.svg`;
+  in-app `components/brand-mark.tsx` (`BrandGlyph`, `BrandMark`). Regenerate with
+  `python3 scripts/brand/build-wordmark.py` (fontTools; Inter is OFL-1.1).
+- **Usage:** min 16 px mark, clear space = ¼ of the mark; never recolour, stretch, rotate,
+  add effects to, or animate the mark. One logo per screen (HIG branding › "Resist the
+  temptation to display your logo throughout your app").
+
+## 14. Signature and effects (H2–H4)
+
+**Signature:** _every conversation lands in one place_ — channel nodes (WhatsApp, Instagram,
+Messenger, Website) send light along beams into a glass assistant core, then a bilingual
+exchange appears once. Full on the auth brand panel (WebGL core on desktop), small on
+onboarding, a static echo in empty states. Everything else stays quiet.
+
+Effects live in `apps/dashboard/src/components/effects/`, rebuilt with **Motion + Tailwind**
+(the 21st.dev registry requires a signed-in account/API key — H3):
+
+| Effect             | Where                                         | How                                                                                                    |
+| ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `AnimatedGradient` | auth panel, onboarding, empty-state backdrops | slow CSS drift of two radial lights (`transform` only)                                                 |
+| `GlowBorder`       | plan/upgrade card, onboarding preview card    | masked conic gradient ring; rotation off under reduced motion                                          |
+| `SpotlightCard`    | KPI cards, plan cards                         | pointer-follow radial highlight via CSS variables (no renders)                                         |
+| `TiltCard`         | onboarding workspace preview                  | ≤ 8° 3D tilt from pointer; horizontal sign flips in RTL                                                |
+| `FloatingShapes`   | empty states, 404                             | CSS 3D glass shapes, slow float; static under reduced motion                                           |
+| `AnimatedBeam`     | auth panel (channels → core)                  | SVG path + travelling gradient; flows toward the core                                                  |
+| `ShimmerButton`    | upgrade / plan CTA only                       | one sheen sweep in reading direction; none when reduced                                                |
+| `NumberTicker`     | KPI / usage values                            | spring count-up, `Intl` per locale + numeral style, `tabular-nums`; screen readers get the final value |
+| `BrandScene3D`     | desktop auth panel only                       | react-three-fiber glass core, lazy chunk, static poster first                                          |
+
+**Never in:** tables, the inbox, forms, dialogs, menus, the sidebar or the top bar — dense
+surfaces stay clean and fast.
+
+**Rules:** transform/opacity only; one orchestrated moment per screen; pause off-screen
+(IntersectionObserver) and in hidden tabs; fixed-size boxes so nothing shifts (CLS 0);
+`prefers-reduced-motion` → final static frame; reduced transparency/increased contrast →
+opaque, no glow; directional motion mirrors in RTL (beams, shimmer, tilt) while logos and
+real-world objects don't. WebGL loads only when: viewport ≥ 1024 px, no reduced motion, no
+Save-Data, WebGL2 available, ≥ 4 CPU cores — after the page is idle; DPR capped at 1.5.
+
+## 15. Performance budgets (H5)
+
+Measured with `pnpm --filter dashboard bundle:check` (gzip, CI):
+
+| Chunk                                   | Before (P3)                    | Budget   |
+| --------------------------------------- | ------------------------------ | -------- |
+| Initial JS for any route                | 332.8 kB (one 1,122.6 kB file) | ≤ 230 kB |
+| Effects (Motion + effects components)   | —                              | ≤ 45 kB  |
+| WebGL scene (three + r3f), desktop auth | —                              | ≤ 260 kB |
+| CSS                                     | 11.9 kB                        | ≤ 16 kB  |

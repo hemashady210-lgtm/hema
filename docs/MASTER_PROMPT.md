@@ -283,5 +283,5 @@ ADDENDUM (approved decisions):
 - Model routing: default Haiku 5.5 for all plans (replies + classification). Auto-escalate to Sonnet 5.5 only for complaints, low-confidence, or complex multi-step questions; log escalation rate. Opus 5.5 = Enterprise only by contract. Model per plan is a DB row.
 - Arabic dialect eval set (Gulf + Egyptian + MSA) required in P6.
 - Widget: Preact (~35kB). Super Admin at /admin inside dashboard. Quotas reset monthly even on annual plans. Trial: 1 bot, 1 user, widget only. Meta caps: Starter 1, Growth 3, Enterprise unlimited.
-- Product name placeholder "AI CRM" in packages/shared/src/brand.ts.
+- Product name placeholder "AI CRM" in packages/shared/src/brand.ts. (Renamed **Pro Coders** by the owner on 2026-11-27 — DECISIONS H1.)
 - APPROVAL RULE: CLAUDE.md wins. Stop after EACH phase for my approval. Update §0/§1 of MASTER_PROMPT.md to say this.

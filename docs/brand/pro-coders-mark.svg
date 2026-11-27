@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Pro Coders"><title>Pro Coders</title><defs><linearGradient id="pc-g" x1="4" y1="2" x2="36" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5A7BFF"/><stop offset=".55" stop-color="#3D63F0"/><stop offset="1" stop-color="#1E3AA8"/>
+    </linearGradient>
+    <radialGradient id="pc-r" cx="35" cy="37" r="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2EBBFF" stop-opacity=".95"/><stop offset="1" stop-color="#2EBBFF" stop-opacity="0"/>
+    </radialGradient></defs><g transform="translate(0 0) scale(1.0)"><path d="M12.4 0H27.6C35.2 0 40 4.8 40 12.4V27.6C40 35.2 35.2 40 27.6 40H12.4C4.8 40 0 35.2 0 27.6V12.4C0 4.8 4.8 0 12.4 0Z" fill="url(#pc-g)"/><path d="M12.4 0H27.6C35.2 0 40 4.8 40 12.4V27.6C40 35.2 35.2 40 27.6 40H12.4C4.8 40 0 35.2 0 27.6V12.4C0 4.8 4.8 0 12.4 0Z" fill="url(#pc-r)" opacity=".75"/>
+    <path d="M12.4 0H27.6C35.2 0 40 4.8 40 12.4V27.6C40 35.2 35.2 40 27.6 40H12.4C4.8 40 0 35.2 0 27.6V12.4C0 4.8 4.8 0 12.4 0Z" fill="none" stroke="#fff" stroke-opacity=".16" transform="translate(.5 .5) scale(.975)"/>
+    <path d="M14.6 9.8H25.4C28.5 9.8 31 12.3 31 15.4V20.9C31 24 28.5 26.5 25.4 26.5H18L13.1 30.4C12.4 30.95 11.4 30.4 11.55 29.5L12.05 26.1C10.3 25.2 9 23.2 9 20.9V15.4C9 12.3 11.5 9.8 14.6 9.8Z" fill="#fff"/>
+    <path d="M15.3 15.4L18.8 18.15L15.3 20.9" stroke="#2747D1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M20.9 20.9H25.6" stroke="#3D63F0" stroke-width="2.2" stroke-linecap="round"/></g></svg>
