@@ -6,6 +6,8 @@ import {
   useState,
   type InputHTMLAttributes,
   type Ref,
+  lazy,
+  Suspense,
 } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Controller } from 'react-hook-form';
@@ -23,6 +25,7 @@ import {
 import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
 import { BrandMark } from '@/components/brand-mark';
+import { useIsDesktop } from '@/components/effects/env';
 import { InlineAlert } from '@/components/inline-alert';
 import { LanguageToggle } from '@/components/language-toggle';
 import { ThemeMenu } from '@/components/theme-menu';
@@ -40,11 +43,14 @@ import {
 } from '@/components/ui/select';
 import { api, ApiClientError, fieldIssues } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { browserTimeZone, countryOptions, timeZoneOptions } from '@/lib/format';
+import { countryOptions, countryTimeZone, defaultTimeZone, timeZoneOptions } from '@/lib/format';
 import { fieldError, useZodForm } from '@/lib/forms';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { cn } from '@/lib/utils';
 import { membershipsKey, useMemberships } from './queries';
+
+// Desktop-only live preview (Motion + glow) — kept out of this page's first-visit bundle.
+const WorkspacePreview = lazy(() => import('./WorkspacePreview'));
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -65,17 +71,28 @@ export function CreateWorkspacePage() {
   const { data: memberships } = useMemberships();
   const [formError, setFormError] = useState<string | null>(null);
   const slugTouched = useRef(false);
+  const zoneTouched = useRef(false);
+  const desktop = useIsDesktop();
+  const zones = useMemo(() => timeZoneOptions(), []);
 
   const form = useZodForm(createWorkspaceSchema, {
     name: '',
     slug: '',
     country_code: 'SA',
-    timezone: browserTimeZone(),
+    timezone: defaultTimeZone('SA', zones),
     default_locale: locale,
   });
   const { errors, isSubmitting } = form.formState;
   const name = form.watch('name');
   const slug = form.watch('slug') ?? '';
+  const country = form.watch('country_code');
+  const preview = form.watch();
+
+  // Picking a country moves the time zone with it until people choose a zone themselves.
+  useEffect(() => {
+    const zone = countryTimeZone(country);
+    if (!zoneTouched.current && zone && zones.includes(zone)) form.setValue('timezone', zone);
+  }, [country, form, zones]);
 
   useEffect(() => {
     if (!slugTouched.current)
@@ -107,8 +124,6 @@ export function CreateWorkspacePage() {
           : 'idle';
 
   const countries = useMemo(() => countryOptions(locale, PRIORITY_COUNTRIES), [locale]);
-  const zones = useMemo(() => timeZoneOptions(), []);
-
   const onSubmit = form.handleSubmit(async (values) => {
     setFormError(null);
     try {
@@ -137,11 +152,11 @@ export function CreateWorkspacePage() {
     memberships && memberships.length > 0 ? `/w/${memberships[0]!.workspace.slug}` : null;
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh bg-aurora">
       <header className="flex h-14 items-center justify-between gap-3 border-b px-4 sm:px-6">
         <BrandMark />
         <div className="flex items-center gap-1">
-          <LanguageToggle compact />
+          <LanguageToggle />
           <ThemeMenu />
           <Button
             variant="ghost"
@@ -156,147 +171,169 @@ export function CreateWorkspacePage() {
           </Button>
         </div>
       </header>
-      <main id="main" className="mx-auto w-full max-w-xl px-5 py-10 sm:py-16">
-        {back ? (
-          <Link
-            to={back}
-            className="mb-6 inline-flex items-center gap-1.5 text-callout text-text-secondary hover:text-text-primary"
-          >
-            <ArrowLeft aria-hidden className="rtl-mirror size-4" />
-            {t('common.back')}
-          </Link>
-        ) : null}
-        <div className="mb-8 flex flex-col gap-2">
-          <h1 className="text-title-1 font-semibold tracking-[-0.01em]">
-            {t('onboarding.workspace.title')}
-          </h1>
-          <p className="text-callout text-text-secondary">{t('onboarding.workspace.subtitle')}</p>
+      <main
+        id="main"
+        className="mx-auto grid w-full max-w-xl gap-16 px-5 py-10 sm:py-16 lg:max-w-5xl lg:grid-cols-[minmax(0,1fr)_360px]"
+      >
+        <div className="min-w-0">
+          {back ? (
+            <Link
+              to={back}
+              className="mb-6 inline-flex items-center gap-1.5 text-callout text-text-secondary hover:text-text-primary"
+            >
+              <ArrowLeft aria-hidden className="rtl-mirror size-4" />
+              {t('common.back')}
+            </Link>
+          ) : null}
+          <div className="mb-8 flex flex-col gap-2">
+            <h1 className="text-title-1 font-semibold">{t('onboarding.workspace.title')}</h1>
+            <p className="text-callout text-text-secondary">{t('onboarding.workspace.subtitle')}</p>
+          </div>
+          <form noValidate onSubmit={onSubmit} className="flex flex-col gap-6">
+            {formError ? <InlineAlert tone="danger">{formError}</InlineAlert> : null}
+            <Field label={t('onboarding.workspace.name')} error={fieldError(t, errors.name)}>
+              <Input
+                autoComplete="organization"
+                dir="auto"
+                placeholder={t('onboarding.workspace.namePlaceholder')}
+                {...form.register('name')}
+              />
+            </Field>
+            <Field
+              label={t('onboarding.workspace.slug')}
+              error={fieldError(t, errors.slug)}
+              hint={t('onboarding.workspace.slugHelp')}
+              labelAside={<SlugStatus status={slugStatus} />}
+            >
+              <SlugInput
+                host={host}
+                {...form.register('slug', {
+                  onChange: () => {
+                    slugTouched.current = true;
+                  },
+                })}
+              />
+            </Field>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Field
+                label={t('onboarding.workspace.category')}
+                error={fieldError(t, errors.category)}
+              >
+                <Controller
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                      <SelectTrigger onBlur={field.onBlur}>
+                        <SelectValue placeholder={t('onboarding.workspace.categoryPlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WORKSPACE_CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {t(`onboarding.categories.${c}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
+              <Field
+                label={t('onboarding.workspace.country')}
+                error={fieldError(t, errors.country_code)}
+              >
+                <Controller
+                  control={form.control}
+                  name="country_code"
+                  render={({ field }) => (
+                    <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                      <SelectTrigger onBlur={field.onBlur}>
+                        <SelectValue placeholder={t('onboarding.workspace.countryPlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countries.map((c, i) => (
+                          <Fragment key={c.code}>
+                            {i === PRIORITY_COUNTRIES.length ? <SelectSeparator /> : null}
+                            <SelectItem value={c.code}>{c.name}</SelectItem>
+                          </Fragment>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Field
+                label={t('onboarding.workspace.timezone')}
+                error={fieldError(t, errors.timezone)}
+              >
+                <Controller
+                  control={form.control}
+                  name="timezone"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={(v) => {
+                        zoneTouched.current = true;
+                        field.onChange(v);
+                      }}
+                    >
+                      {/* The control follows the page direction (chevron at the end in Arabic);
+                        zone names are LTR islands. */}
+                      <SelectTrigger onBlur={field.onBlur}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {zones.map((z) => (
+                          <SelectItem key={z} value={z}>
+                            <span dir="ltr">{z.replace(/_/g, ' ')}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
+              <Field
+                label={t('onboarding.workspace.defaultLocale')}
+                hint={t('onboarding.workspace.defaultLocaleHelp')}
+              >
+                <Controller
+                  control={form.control}
+                  name="default_locale"
+                  render={({ field }) => (
+                    <LocaleSegmented
+                      value={field.value}
+                      onChange={field.onChange}
+                      label={t('onboarding.workspace.defaultLocale')}
+                    />
+                  )}
+                />
+              </Field>
+            </div>
+            <InlineAlert tone="info">{t('onboarding.workspace.trialNote')}</InlineAlert>
+            <Button
+              type="submit"
+              size="lg"
+              loading={isSubmitting}
+              className="w-full sm:w-auto sm:self-start"
+            >
+              {isSubmitting
+                ? t('onboarding.workspace.submitting')
+                : t('onboarding.workspace.submit')}
+            </Button>
+          </form>
         </div>
-        <form noValidate onSubmit={onSubmit} className="flex flex-col gap-6">
-          {formError ? <InlineAlert tone="danger">{formError}</InlineAlert> : null}
-          <Field label={t('onboarding.workspace.name')} error={fieldError(t, errors.name)}>
-            <Input
-              autoComplete="organization"
-              dir="auto"
-              placeholder={t('onboarding.workspace.namePlaceholder')}
-              {...form.register('name')}
-            />
-          </Field>
-          <Field
-            label={t('onboarding.workspace.slug')}
-            error={fieldError(t, errors.slug)}
-            hint={t('onboarding.workspace.slugHelp')}
-            labelAside={<SlugStatus status={slugStatus} />}
-          >
-            <SlugInput
-              host={host}
-              {...form.register('slug', {
-                onChange: () => {
-                  slugTouched.current = true;
-                },
-              })}
-            />
-          </Field>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Field
-              label={t('onboarding.workspace.category')}
-              error={fieldError(t, errors.category)}
-            >
-              <Controller
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                    <SelectTrigger onBlur={field.onBlur}>
-                      <SelectValue placeholder={t('onboarding.workspace.categoryPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WORKSPACE_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {t(`onboarding.categories.${c}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-            <Field
-              label={t('onboarding.workspace.country')}
-              error={fieldError(t, errors.country_code)}
-            >
-              <Controller
-                control={form.control}
-                name="country_code"
-                render={({ field }) => (
-                  <Select value={field.value ?? ''} onValueChange={field.onChange}>
-                    <SelectTrigger onBlur={field.onBlur}>
-                      <SelectValue placeholder={t('onboarding.workspace.countryPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countries.map((c, i) => (
-                        <Fragment key={c.code}>
-                          {i === PRIORITY_COUNTRIES.length ? <SelectSeparator /> : null}
-                          <SelectItem value={c.code}>{c.name}</SelectItem>
-                        </Fragment>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-          </div>
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Field
-              label={t('onboarding.workspace.timezone')}
-              error={fieldError(t, errors.timezone)}
-            >
-              <Controller
-                control={form.control}
-                name="timezone"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger onBlur={field.onBlur} dir="ltr">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent dir="ltr">
-                      {zones.map((z) => (
-                        <SelectItem key={z} value={z}>
-                          {z.replace(/_/g, ' ')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </Field>
-            <Field
-              label={t('onboarding.workspace.defaultLocale')}
-              hint={t('onboarding.workspace.defaultLocaleHelp')}
-            >
-              <Controller
-                control={form.control}
-                name="default_locale"
-                render={({ field }) => (
-                  <LocaleSegmented
-                    value={field.value}
-                    onChange={field.onChange}
-                    label={t('onboarding.workspace.defaultLocale')}
-                  />
-                )}
-              />
-            </Field>
-          </div>
-          <InlineAlert tone="info">{t('onboarding.workspace.trialNote')}</InlineAlert>
-          <Button
-            type="submit"
-            size="lg"
-            loading={isSubmitting}
-            className="w-full sm:w-auto sm:self-start"
-          >
-            {isSubmitting ? t('onboarding.workspace.submitting') : t('onboarding.workspace.submit')}
-          </Button>
-        </form>
+        {desktop ? (
+          <aside className="hidden lg:block">
+            <div className="sticky top-10">
+              <Suspense fallback={null}>
+                <WorkspacePreview host={host} values={{ ...preview, slug }} />
+              </Suspense>
+            </div>
+          </aside>
+        ) : null}
       </main>
     </div>
   );

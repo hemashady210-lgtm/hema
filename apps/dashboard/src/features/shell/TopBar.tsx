@@ -1,7 +1,7 @@
+import { Link } from 'react-router';
 import { Menu, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '@/components/language-toggle';
-import { ThemeMenu } from '@/components/theme-menu';
 import { Button } from '@/components/ui/button';
 import { Badge, Kbd } from '@/components/ui/misc';
 import { useWorkspace } from '@/features/workspaces/context';
@@ -11,6 +11,7 @@ import { NotificationsBell } from './NotificationsBell';
 import { UserMenu } from './UserMenu';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
+/** Trial / read-only status; links to Overview, where the real plan and usage live (H6). */
 function PlanBadge() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
@@ -25,9 +26,14 @@ function PlanBadge() {
   if (sub?.status === 'trialing' && sub.trial_ends_at) {
     const days = daysUntil(sub.trial_ends_at);
     return days > 0 ? (
-      <Badge tone="info" dot className="tabular" data-testid="trial-badge">
-        {t('shell.trialDaysLeft', { count: days })}
-      </Badge>
+      <Link
+        to={`/w/${workspace.slug}`}
+        className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <Badge tone="info" dot className="tabular hover:bg-info/20" data-testid="trial-badge">
+          {t('shell.trialDaysLeft', { count: days })}
+        </Badge>
+      </Link>
     ) : (
       <Badge tone="warning" dot>
         {t('shell.trialEnded')}
@@ -52,7 +58,7 @@ export function TopBar({
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="max-md:size-11 lg:hidden"
         onClick={onOpenMenu}
         aria-label={t('shell.openMenu')}
       >
@@ -80,15 +86,16 @@ export function TopBar({
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="max-md:size-11 md:hidden"
           onClick={onOpenPalette}
           aria-label={t('shell.jumpTo')}
         >
           <Search aria-hidden />
         </Button>
-        <LanguageToggle compact />
-        <div className="hidden sm:block">
-          <ThemeMenu />
+        {/* Desktop keeps one-click language switching; on phones it lives in the user menu
+            (with appearance) so the bar keeps 44 px targets (HIG toolbars › overcrowding). */}
+        <div className="hidden md:block">
+          <LanguageToggle compact />
         </div>
         <NotificationsBell workspaceId={workspace.id} />
         <div className="ms-1">

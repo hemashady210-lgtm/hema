@@ -77,6 +77,32 @@ export function timeZoneOptions(): string[] {
   return [...gulf, ...zones.filter((z) => !gulf.includes(z))];
 }
 
+/** Main time zone of each priority country (the picker's default when the device's zone is unknown). */
+const COUNTRY_ZONES: Record<string, string> = {
+  SA: 'Asia/Riyadh',
+  AE: 'Asia/Dubai',
+  KW: 'Asia/Kuwait',
+  QA: 'Asia/Qatar',
+  BH: 'Asia/Bahrain',
+  OM: 'Asia/Muscat',
+  EG: 'Africa/Cairo',
+  JO: 'Asia/Amman',
+};
+
+export function countryTimeZone(country: string | null | undefined): string | undefined {
+  return country ? COUNTRY_ZONES[country] : undefined;
+}
+
+/**
+ * Default for the time zone picker: the device's own zone when it is in the list (HIG entering
+ * data › "Get information from the system"), otherwise the country's main zone — never empty.
+ */
+export function defaultTimeZone(country: string, zones: string[] = timeZoneOptions()): string {
+  const device = browserTimeZone();
+  if (zones.includes(device)) return device;
+  return COUNTRY_ZONES[country] ?? 'Asia/Riyadh';
+}
+
 export function browserTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';

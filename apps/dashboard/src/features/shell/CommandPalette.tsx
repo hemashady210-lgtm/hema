@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/app/auth';
 import { usePreferences } from '@/app/preferences';
 import { overlayClass } from '@/components/ui/dialog';
+import { Kbd } from '@/components/ui/misc';
 import { THEME_ICONS } from '@/components/theme-menu';
 import { useWorkspace } from '@/features/workspaces/context';
 import { useIsPlatformAdmin } from '@/features/workspaces/queries';
@@ -155,6 +156,25 @@ export function CommandPalette({
                 </Command.Item>
               </Command.Group>
             </Command.List>
+            {/* Keyboard hints (HIG keyboards): how to move, open and close. Hidden on touch. */}
+            <div
+              aria-hidden
+              className="hidden items-center gap-4 border-t px-4 py-2.5 text-caption text-text-tertiary sm:flex"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+                {t('palette.hints.move')}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Kbd>↵</Kbd>
+                {t('palette.hints.open')}
+              </span>
+              <span className="ms-auto inline-flex items-center gap-1.5">
+                <Kbd>Esc</Kbd>
+                {t('palette.hints.close')}
+              </span>
+            </div>
           </Command>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

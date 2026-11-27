@@ -202,6 +202,14 @@ export const ar: Translation = {
       trialNote:
         'تبدأ تجربتك المجانية عند إنشاء مساحة العمل، وتظهر حدودها والأيام المتبقية في صفحة النظرة العامة.',
       created: 'تم إنشاء مساحة العمل.',
+      preview: {
+        label: 'معاينة',
+        caption: 'تتحدّث أثناء الكتابة.',
+        namePending: 'نشاطك التجاري',
+        localTime: 'الوقت المحلي {{time}}',
+        customers: 'العملاء: {{language}}',
+        trial: 'تجربة مجانية',
+      },
     },
     categories: {
       restaurant: 'مطعم',
@@ -281,6 +289,25 @@ export const ar: Translation = {
       admin: 'أدوات المنصة لمساحات العمل والاشتراكات وطلبات الربط.',
     },
   },
+  overview: {
+    usage: {
+      title: 'الخطة والاستخدام',
+      trial: 'التجربة المجانية',
+      plan: 'الخطة',
+      daysLeft_one: 'الأيام المتبقية',
+      daysLeft_other: 'الأيام المتبقية',
+      endsOn: 'تنتهي في {{date}}',
+      active: 'نشطة',
+      renewsOn: 'تتجدد في {{date}}',
+      viewPlans: 'عرض الخطط',
+      seats: 'مقاعد الفريق',
+      ofLimit: 'من {{limit}}',
+      unlimited: 'دون حد',
+      seatsMembersOnly: 'أعضاء مساحة العمل هذه.',
+      aiReplies: 'الردود الذكية في هذه الفترة',
+      aiHelp: 'يُحتسب كل ردّ يرسله مساعدك مرة واحدة.',
+    },
+  },
   palette: {
     placeholder: 'اكتب أمرًا أو اسم صفحة…',
     empty: 'لا توجد نتائج.',
@@ -289,6 +316,11 @@ export const ar: Translation = {
     preferences: 'التفضيلات',
     switchLanguage: 'التبديل إلى {{language}}',
     useTheme: 'استخدم المظهر {{theme}}',
+    hints: {
+      move: 'تنقّل',
+      open: 'افتح',
+      close: 'أغلق',
+    },
   },
   settings: {
     title: 'الإعدادات',

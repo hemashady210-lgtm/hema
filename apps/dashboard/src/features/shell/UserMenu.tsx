@@ -1,13 +1,17 @@
 import { useNavigate } from 'react-router';
-import { LogOut, UserRound } from 'lucide-react';
+import { Languages, LogOut, Monitor, Moon, Sun, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/auth';
+import { usePreferences, type ThemePreference } from '@/app/preferences';
 import { Avatar } from '@/components/ui/misc';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -16,7 +20,9 @@ import { initials } from '@/lib/format';
 export function UserMenu({ slug }: { slug: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, setLocale } = useAuth();
+  const { locale, theme, setTheme } = usePreferences();
+  const other = locale === 'ar' ? 'en' : 'ar';
   const name = profile?.full_name ?? user?.email ?? '';
   return (
     <DropdownMenu>
@@ -25,7 +31,7 @@ export function UserMenu({ slug }: { slug: string }) {
           type="button"
           aria-label={t('shell.userMenu')}
           data-testid="user-menu"
-          className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="grid place-items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-md:size-11"
         >
           <Avatar name={initials(profile?.full_name, user?.email)} className="size-8" />
         </button>
@@ -45,6 +51,27 @@ export function UserMenu({ slug }: { slug: string }) {
           <UserRound aria-hidden />
           {t('shell.account')}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {/* Preferences (also on Account and in ⌘K). Language switches in place, no reload. */}
+        <DropdownMenuItem onSelect={() => setLocale(other)}>
+          <Languages aria-hidden />
+          <span lang={other}>{t(`language.${other}`)}</span>
+        </DropdownMenuItem>
+        <DropdownMenuLabel className="pt-2">{t('theme.label')}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as ThemePreference)}>
+          {(
+            [
+              ['dark', Moon],
+              ['light', Sun],
+              ['system', Monitor],
+            ] as const
+          ).map(([value, Icon]) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon aria-hidden />
+              {t(`theme.${value}`)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={async () => {

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { animate } from 'motion/react';
 import type { Locale } from '@ai-crm/shared';
 import { intlLocale } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -47,20 +46,20 @@ export function NumberTicker({
       el.textContent = finalText;
       return;
     }
-    const controls = animate(from, value, {
-      type: 'spring',
-      stiffness: 70,
-      damping: 18,
-      restDelta: 0.5,
-      onUpdate: (v) => {
-        el.textContent = fmt.format(Math.round(v));
-      },
-      onComplete: () => {
-        el.textContent = finalText;
-      },
-    });
+    // A short ease-out count (no animation library: keeps Motion out of route bundles).
+    const start = performance.now();
+    const duration = 900;
+    let frame = 0;
+    const tick = (now: number) => {
+      const t = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = fmt.format(Math.round(from + (value - from) * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+      else el.textContent = finalText;
+    };
+    frame = requestAnimationFrame(tick);
     shown.current = value;
-    return () => controls.stop();
+    return () => cancelAnimationFrame(frame);
   }, [value, visible, reduced, fmt, finalText]);
 
   return (

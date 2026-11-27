@@ -202,6 +202,14 @@ export const en = {
       trialNote:
         'Your free trial starts when you create the workspace. Its limits and days left appear on Overview.',
       created: 'Workspace created.',
+      preview: {
+        label: 'Preview',
+        caption: 'Updates as you type.',
+        namePending: 'Your business',
+        localTime: 'Local time {{time}}',
+        customers: 'Customers: {{language}}',
+        trial: 'Free trial',
+      },
     },
     categories: {
       restaurant: 'Restaurant',
@@ -284,6 +292,25 @@ export const en = {
       admin: 'Platform tools for workspaces, subscriptions and connection requests.',
     },
   },
+  overview: {
+    usage: {
+      title: 'Plan & usage',
+      trial: 'Free trial',
+      plan: 'Plan',
+      daysLeft_one: 'day left',
+      daysLeft_other: 'days left',
+      endsOn: 'Ends {{date}}',
+      active: 'Active',
+      renewsOn: 'Renews {{date}}',
+      viewPlans: 'View plans',
+      seats: 'Team seats',
+      ofLimit: 'of {{limit}}',
+      unlimited: 'no limit',
+      seatsMembersOnly: 'Members of this workspace.',
+      aiReplies: 'AI replies this period',
+      aiHelp: 'Every reply your assistant sends counts once.',
+    },
+  },
   palette: {
     placeholder: 'Type a command or a page…',
     empty: 'No matches.',
@@ -292,6 +319,11 @@ export const en = {
     preferences: 'Preferences',
     switchLanguage: 'Switch to {{language}}',
     useTheme: 'Use {{theme}} appearance',
+    hints: {
+      move: 'Move',
+      open: 'Open',
+      close: 'Close',
+    },
   },
   settings: {
     title: 'Settings',
